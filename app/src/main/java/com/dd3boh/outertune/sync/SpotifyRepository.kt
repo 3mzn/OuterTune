@@ -55,8 +55,9 @@ class SpotifyRepository @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     companion object {
-        const val CLIENT_ID = "a1a7a55ade18420fa7cc22a9b8c60040"
-        const val CLIENT_SECRET = "189bd3c607c24c358bec108433ad3751"
+        // TODO: Replace with your own Spotify API credentials from https://developer.spotify.com/dashboard
+        const val CLIENT_ID = "YOUR_SPOTIFY_CLIENT_ID"
+        const val CLIENT_SECRET = "YOUR_SPOTIFY_CLIENT_SECRET"
         const val REDIRECT_URI = "https://outertune.app/callback"
     }
 
