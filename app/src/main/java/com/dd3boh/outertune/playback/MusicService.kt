@@ -254,7 +254,8 @@ class MusicService : MediaLibraryService(),
                 addListener(this@MusicService)
                 sleepTimer = SleepTimer(scope, this)
                 addListener(sleepTimer)
-                addListener(playbackProgressTracker)
+                // Note: playbackProgressTracker is no longer a Player.Listener
+                // It's called manually from MusicService to pass playlist context
                 addAnalyticsListener(PlaybackStatsListener(false, this@MusicService))
 
                 // Start progress tracking loop
@@ -646,7 +647,8 @@ class MusicService : MediaLibraryService(),
             while (isActive) {
                 try {
                     if (player.isPlaying) {
-                        playbackProgressTracker.trackProgress(player, scope)
+                        val currentPlaylistId = queueBoard.value.getCurrentQueue()?.playlistId
+                        playbackProgressTracker.trackProgress(player, scope, currentPlaylistId)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in progress tracking loop", e)
@@ -1005,6 +1007,10 @@ class MusicService : MediaLibraryService(),
 
         queueBoard.value.setCurrQueuePosIndex(player.currentMediaItemIndex)
 
+        // Track playback progress for "To Listen" playlist songs
+        val currentPlaylistId = queueBoard.value.getCurrentQueue()?.playlistId
+        playbackProgressTracker.onMediaItemTransition(mediaItem, reason, currentPlaylistId)
+
         // reshuffle queue when shuffle AND repeat all are enabled
         // no, when repeat mode is on, player does not "STATE_ENDED"
         if (player.currentMediaItemIndex == player.mediaItemCount - 1 &&
@@ -1026,6 +1032,9 @@ class MusicService : MediaLibraryService(),
         if (playbackState == STATE_IDLE) {
             queuePlaylistId = null
         }
+        
+        // Notify tracker of playback state changes
+        playbackProgressTracker.onPlaybackStateChanged(playbackState)
     }
 
     override fun onEvents(player: Player, events: Player.Events) {

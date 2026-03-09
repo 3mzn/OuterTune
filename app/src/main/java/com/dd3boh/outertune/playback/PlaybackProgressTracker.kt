@@ -24,7 +24,7 @@ import javax.inject.Singleton
 class PlaybackProgressTracker @Inject constructor(
     private val songSharingRepository: SongSharingRepository,
     private val database: MusicDatabase
-) : Player.Listener {
+) {
     private val TAG = "PlaybackProgressTracker"
     
     private var trackingJob: Job? = null
@@ -36,28 +36,28 @@ class PlaybackProgressTracker @Inject constructor(
 
     /**
      * Start tracking when media item transitions
+     * @param mediaItem The media item being played
+     * @param reason The reason for the transition
+     * @param currentPlaylistId The playlist ID currently being played from (null if not from a playlist)
      */
-    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        super.onMediaItemTransition(mediaItem, reason)
-        
+    fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int, currentPlaylistId: String?) {
         // Cancel previous tracking
         stopTracking()
         
         if (mediaItem == null) return
         
         val songId = mediaItem.mediaId
-        Log.d(TAG, "Media item transition: $songId")
+        Log.d(TAG, "Media item transition: $songId from playlist: $currentPlaylistId")
         
         // Check if this song is from "To Listen" playlist
-        checkAndStartTracking(songId)
+        checkAndStartTracking(songId, currentPlaylistId)
     }
 
     /**
      * Stop tracking when playback state changes to idle or ended
+     * Called manually from MusicService
      */
-    override fun onPlaybackStateChanged(playbackState: Int) {
-        super.onPlaybackStateChanged(playbackState)
-        
+    fun onPlaybackStateChanged(playbackState: Int) {
         if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
             stopTracking()
         }
@@ -65,12 +65,21 @@ class PlaybackProgressTracker @Inject constructor(
 
     /**
      * Check if song is from "To Listen" playlist and start tracking
+     * @param songId The song ID to check
+     * @param currentPlaylistId The playlist ID currently being played from (null if not from a playlist)
      */
-    private fun checkAndStartTracking(songId: String) {
-        Log.d(TAG, "🔍 Checking if song $songId should be tracked")
+    private fun checkAndStartTracking(songId: String, currentPlaylistId: String?) {
+        Log.d(TAG, "🔍 Checking if song $songId should be tracked (playlist: $currentPlaylistId)")
+        
+        // CRITICAL: Only track if playing FROM "To Listen" playlist
+        if (currentPlaylistId != PlaylistEntity.TO_LISTEN_PLAYLIST_ID) {
+            Log.d(TAG, "⏭️ Not playing from To Listen playlist (current: $currentPlaylistId), skipping tracking")
+            return
+        }
+        
         trackingJob = CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             try {
-                // Check if song is in "To Listen" playlist
+                // Double-check: Verify song is actually in "To Listen" playlist
                 val isInToListenPlaylist = database.isSongInPlaylist(
                     PlaylistEntity.TO_LISTEN_PLAYLIST_ID,
                     songId
@@ -110,8 +119,10 @@ class PlaybackProgressTracker @Inject constructor(
     /**
      * Track playback progress (called periodically by MusicService)
      * @param player The ExoPlayer instance
+     * @param scope Coroutine scope
+     * @param currentPlaylistId The playlist ID currently being played from (null if not from a playlist)
      */
-    fun trackProgress(player: Player, scope: CoroutineScope) {
+    fun trackProgress(player: Player, scope: CoroutineScope, currentPlaylistId: String?) {
         if (currentTrackingSongId == null || currentSentSongId == null) return
         
         scope.launch {

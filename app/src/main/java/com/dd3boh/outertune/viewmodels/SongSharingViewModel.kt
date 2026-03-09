@@ -49,10 +49,18 @@ class SongSharingViewModel @Inject constructor(
                     Log.d(TAG, "📬 Received ${songs.size} incoming songs from Firestore")
                     _incomingSongs.value = songs
                     
-                    // Process new songs
+                    // Process new songs with proper coroutine handling
                     songs.forEach { sentSong ->
                         Log.d(TAG, "🎵 Processing song: ${sentSong.songTitle} from ${sentSong.fromUsername}")
-                        processSentSong(sentSong)
+                        // Launch each processing in a separate coroutine to handle errors independently
+                        launch {
+                            try {
+                                processSentSong(sentSong)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "❌ Failed to process song ${sentSong.songTitle}", e)
+                                // Continue processing other songs even if one fails
+                            }
+                        }
                     }
                 }
                 
@@ -76,6 +84,7 @@ class SongSharingViewModel @Inject constructor(
 
     /**
      * Process a sent song - fetch metadata and add to "To Listen" playlist
+     * Includes retry logic for transient failures
      */
     private suspend fun processSentSong(sentSong: SentSong) {
         try {
@@ -99,12 +108,32 @@ class SongSharingViewModel @Inject constructor(
             
             if (metadata != null) {
                 Log.d(TAG, "📝 Metadata fetched: ${metadata.title}")
-                // Add to "To Listen" playlist
-                val success = songSharingRepository.addSongToToListenPlaylist(sentSong, metadata)
-                if (success) {
-                    Log.d(TAG, "✅ Successfully added ${sentSong.songTitle} to To Listen playlist")
-                } else {
-                    Log.w(TAG, "⚠️ Failed to add ${sentSong.songTitle} (might be duplicate)")
+                
+                // Add to "To Listen" playlist with retry logic
+                var retryCount = 0
+                val maxRetries = 3
+                var success = false
+                
+                while (retryCount < maxRetries && !success) {
+                    try {
+                        success = songSharingRepository.addSongToToListenPlaylist(sentSong, metadata)
+                        
+                        if (success) {
+                            Log.d(TAG, "✅ Successfully added ${sentSong.songTitle} to To Listen playlist")
+                        } else {
+                            Log.w(TAG, "⚠️ Failed to add ${sentSong.songTitle} (might be duplicate)")
+                        }
+                    } catch (e: Exception) {
+                        retryCount++
+                        if (retryCount < maxRetries) {
+                            val delayMs = 1000L * retryCount // Exponential backoff: 1s, 2s, 3s
+                            Log.w(TAG, "⚠️ Attempt $retryCount failed, retrying in ${delayMs}ms: ${e.message}")
+                            kotlinx.coroutines.delay(delayMs)
+                        } else {
+                            Log.e(TAG, "❌ Failed to add ${sentSong.songTitle} after $maxRetries attempts", e)
+                            throw e
+                        }
+                    }
                 }
             } else {
                 Log.w(TAG, "⚠️ Could not fetch metadata for ${sentSong.songTitle}")

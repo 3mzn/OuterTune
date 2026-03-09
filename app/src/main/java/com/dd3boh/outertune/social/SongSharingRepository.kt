@@ -274,7 +274,9 @@ class SongSharingRepository @Inject constructor(
             // For now, the notification will be triggered by Firestore triggers
             // on the backend (not implemented in this client-side code)
         } catch (e: Exception) {
-            Log.e(TAG, "Error marking song as listened", e)
+            Log.e(TAG, "Error marking song as listened: ${e.message}", e)
+            // Don't throw - allow playback to continue even if Firebase update fails
+            // The update will be retried when network is restored via Firestore offline persistence
         }
     }
 
@@ -285,28 +287,41 @@ class SongSharingRepository @Inject constructor(
      */
     suspend fun markSongAsCompleted(sentSongId: String, songId: String) {
         try {
-            // Update Firebase
+            // Remove from "To Listen" playlist FIRST (local operation, more critical)
+            val playlistSongs = database.playlistSongs(PlaylistEntity.TO_LISTEN_PLAYLIST_ID)
+                .firstOrNull() ?: emptyList()
+            
+            val songToRemove = playlistSongs.find { it.song.id == songId }
+            if (songToRemove != null) {
+                val removedPosition = songToRemove.map.position
+                
+                database.query {
+                    // Delete the song from playlist
+                    delete(songToRemove.map)
+                    
+                    // Shift all songs with position > removedPosition UP by 1 to close the gap
+                    // This prevents position gaps from accumulating over time
+                    playlistSongs
+                        .filter { it.map.position > removedPosition }
+                        .forEach { playlistSong ->
+                            update(playlistSong.map.copy(position = playlistSong.map.position - 1))
+                        }
+                }
+                Log.d(TAG, "Removed song $songId from To Listen playlist and reindexed positions")
+            }
+
+            // Update Firebase AFTER local removal (can sync later if offline)
             sentSongsCollection.document(sentSongId).update(
                 mapOf(
                     "completedAt" to System.currentTimeMillis()
                 )
             ).await()
 
-            // Remove from "To Listen" playlist
-            val playlistSongs = database.playlistSongs(PlaylistEntity.TO_LISTEN_PLAYLIST_ID)
-                .firstOrNull() ?: emptyList()
-            
-            val songToRemove = playlistSongs.find { it.song.id == songId }
-            if (songToRemove != null) {
-                database.query {
-                    delete(songToRemove.map)
-                }
-                Log.d(TAG, "Removed song $songId from To Listen playlist")
-            }
-
             Log.d(TAG, "Marked song $sentSongId as completed")
         } catch (e: Exception) {
-            Log.e(TAG, "Error marking song as completed", e)
+            Log.e(TAG, "Error marking song as completed: ${e.message}", e)
+            // Don't throw - the song was removed from playlist locally
+            // Firebase update will sync when network is restored
         }
     }
 
@@ -323,7 +338,9 @@ class SongSharingRepository @Inject constructor(
             ).await()
             Log.d(TAG, "Marked notification as sent for $sentSongId")
         } catch (e: Exception) {
-            Log.e(TAG, "Error marking notification as sent", e)
+            Log.e(TAG, "Error marking notification as sent: ${e.message}", e)
+            // Don't throw - notification was shown locally
+            // This prevents duplicate notifications on retry
         }
     }
 
@@ -425,14 +442,25 @@ class SongSharingRepository @Inject constructor(
             val snapshot = sentSongsCollection
                 .whereEqualTo("toUid", currentUid)
                 .whereEqualTo("songId", songId)
-                .whereEqualTo("completedAt", null)
-                .limit(1)
+                .orderBy("sentAt", Query.Direction.DESCENDING) // Get most recent first
+                // Note: Firestore doesn't support querying for null values
+                // Filter for non-completed songs on client side instead
                 .get()
                 .await()
             
-            snapshot.documents.firstOrNull()?.let { doc ->
-                SentSong.fromMap(doc.id, doc.data ?: emptyMap())
-            }
+            // Filter for non-completed songs on client side
+            // Returns the most recent non-completed song
+            snapshot.documents
+                .mapNotNull { doc ->
+                    try {
+                        val song = SentSong.fromMap(doc.id, doc.data ?: emptyMap())
+                        if (song.completedAt == null) song else null
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error parsing sent song from doc ${doc.id}", e)
+                        null
+                    }
+                }
+                .firstOrNull()
         } catch (e: Exception) {
             Log.e(TAG, "Error getting sent song by ID", e)
             null
