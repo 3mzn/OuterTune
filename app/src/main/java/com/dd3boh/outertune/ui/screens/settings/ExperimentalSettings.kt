@@ -85,6 +85,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -584,6 +585,29 @@ fun ExperimentalSettings(
                         Toast.makeText(context, "Nuking remote playlists from database...", Toast.LENGTH_SHORT).show()
                         coroutineScope.launch(Dispatchers.IO) {
                             Log.i(SETTINGS_TAG, "Nuke database status:  ${database.nukeRemotePlaylists()}")
+                        }
+                    }
+                )
+                PreferenceEntry(
+                    title = { Text("DEBUG: Clear To Listen Playlist") },
+                    icon = { Icon(Icons.Rounded.Delete, null) },
+                    onClick = {
+                        Toast.makeText(context, "Clearing To Listen playlist...", Toast.LENGTH_SHORT).show()
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                database.transaction {
+                                    clearPlaylist(com.dd3boh.outertune.db.entities.PlaylistEntity.TO_LISTEN_PLAYLIST_ID)
+                                }
+                                Log.i(SETTINGS_TAG, "To Listen playlist cleared successfully")
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, "Cleared! Note: Songs may reappear if Firebase records still exist with completedAt=null. Delete Firebase docs to prevent this.", Toast.LENGTH_LONG).show()
+                                }
+                            } catch (e: Exception) {
+                                Log.e(SETTINGS_TAG, "Error clearing To Listen playlist", e)
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         }
                     }
                 )

@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -121,6 +122,14 @@ fun Lyrics(
     val density = LocalDensity.current
     var (showLyrics, onShowLyricsChange) = rememberPreference(ShowLyricsKey, false)
     val landscapeOffset = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    // Check if current playlist is "To Listen" - seeking should be disabled
+    val qb by playerConnection.service.queueBoard.collectAsState()
+    val isToListenPlaylist = remember(qb) {
+        derivedStateOf {
+            qb.getCurrentQueue()?.playlistId == com.dd3boh.outertune.db.entities.PlaylistEntity.TO_LISTEN_PLAYLIST_ID
+        }
+    }.value
 
     val lyricsTextPosition by rememberEnumPreference(LyricsTextPositionKey, LyricsPosition.CENTER)
     val lyricsFontSize by rememberPreference(LyricFontSizeKey, 20)
@@ -332,7 +341,7 @@ fun Lyrics(
                                 bottom = if (item.isTranslated) 16.dp else 8.dp,
                             )
                             // we allow clicking on blank lyrics, ignore item.isClickable
-                            .clickable(enabled = isSynced && lyricsClickable) {
+                            .clickable(enabled = isSynced && lyricsClickable && !isToListenPlaylist) {
                                 playerConnection.player.seekTo(item.start.toLong())
                                 currentLineIndex = index
                                 currentPos = item.start.toLong()

@@ -11,6 +11,11 @@ import com.dd3boh.outertune.db.InternalDatabase
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.get
+import com.dd3boh.outertune.social.SocialRepository
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
+import com.google.gson.Gson
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -68,4 +73,42 @@ object AppModule {
         constructor().release()
         return constructor()
     }
+
+    @Singleton
+    @Provides
+    fun provideFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
+
+    @Singleton
+    @Provides
+    fun provideFirebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance()
+
+    @Singleton
+    @Provides
+    fun provideFirebaseDatabase(): FirebaseDatabase {
+        // Use the specific database URL for your region
+        val databaseUrl = "https://outertune-social-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        val database = FirebaseDatabase.getInstance(databaseUrl)
+        
+        // DISABLE offline persistence for live sessions to avoid sync issues
+        // Persistence can cause writes to appear successful locally but fail to sync
+        try {
+            database.setPersistenceEnabled(false)
+        } catch (e: Exception) {
+            println("Firebase Database persistence setting failed: ${e.message}")
+        }
+        
+        println("Firebase Database URL: ${database.reference.toString()}")
+        return database
+    }
+
+    @Singleton
+    @Provides
+    fun provideGson(): Gson = Gson()
+
+    @Singleton
+    @Provides
+    fun provideSocialRepository(
+        firestore: FirebaseFirestore,
+        auth: FirebaseAuth
+    ): SocialRepository = SocialRepository(firestore, auth)
 }

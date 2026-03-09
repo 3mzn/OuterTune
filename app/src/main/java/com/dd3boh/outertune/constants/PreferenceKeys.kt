@@ -178,6 +178,11 @@ val AccountNameKey = stringPreferencesKey("accountName")
 val AccountEmailKey = stringPreferencesKey("accountEmail")
 val AccountChannelHandleKey = stringPreferencesKey("accountChannelHandle")
 
+val SpotifyCookieKey = stringPreferencesKey("spotifyCookie")
+val SpotifyApiTokenKey = stringPreferencesKey("spotifyApiToken")
+val SpotifyAccountNameKey = stringPreferencesKey("spotifyAccountName")
+val SpotifyAccountEmailKey = stringPreferencesKey("spotifyAccountEmail")
+
 
 /**
  * Misc

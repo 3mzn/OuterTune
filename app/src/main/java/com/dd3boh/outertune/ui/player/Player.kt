@@ -22,6 +22,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
@@ -90,8 +91,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -162,6 +166,7 @@ fun BottomSheetPlayer(
     state: BottomSheetState,
     navController: NavController,
     modifier: Modifier = Modifier,
+    isLiveMode: Boolean = false,
 ) {
     val TAG = "BottomSheetPlayer"
     Log.v(TAG, "PLR-1")
@@ -210,15 +215,15 @@ fun BottomSheetPlayer(
             playerConnection.softKillPlayer()
         },
         collapsedContent = {
-            MiniPlayer()
+            MiniPlayer(isLiveMode = isLiveMode)
         }
     ) {
         Log.v(TAG, "PLR-3.0")
 
         if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE && !context.tabMode() && context.supportsWideScreen()) {
-            LandscapePlayer(state, navController, queueBoard)
+            LandscapePlayer(state, navController, queueBoard, isLiveMode = isLiveMode)
         } else {
-            PortraitPlayer(state, navController, queueBoard)
+            PortraitPlayer(state, navController, queueBoard, isLiveMode = isLiveMode)
         }
     }
 }
@@ -230,6 +235,7 @@ fun PortraitPlayer(
     navController: NavController,
     queueBoard: QueueBoard,
     enableQueueSheet: Boolean = true,
+    isLiveMode: Boolean = false,
 ) {
     val TAG = "BottomSheetPlayer"
     Log.v(TAG, "PLR-3.1b")
@@ -354,7 +360,7 @@ fun PortraitPlayer(
             }
         }
 
-        ControlsContent(playerSheetState, queueSheetState, navController, queueBoard)
+        ControlsContent(playerSheetState, queueSheetState, navController, queueBoard, LocalContext.current.supportsWideScreen(), isLiveMode)
 
 
         Spacer(Modifier.height(24.dp))
@@ -382,6 +388,7 @@ fun LandscapePlayer(
     navController: NavController,
     queueBoard: QueueBoard,
     enableQueueSheet: Boolean = true,
+    isLiveMode: Boolean = false,
 ) {
     val TAG = "BottomSheetPlayer"
 
@@ -523,7 +530,7 @@ fun LandscapePlayer(
         ) {
             Spacer(Modifier.weight(1f))
 
-            ControlsContent(playerSheetState, queueSheetState, navController, queueBoard, context.supportsWideScreen())
+            ControlsContent(playerSheetState, queueSheetState, navController, queueBoard, LocalContext.current.supportsWideScreen(), isLiveMode)
 
             Spacer(Modifier.weight(1f))
         }
@@ -615,6 +622,7 @@ fun ControlsContent(
     navController: NavController,
     queueBoard: QueueBoard,
     showQueueHint: Boolean = false,
+    isLiveMode: Boolean = false,
 ) {
     val TAG = "ControlsContent()"
     Log.v(TAG, "PLR-CC-1")
@@ -777,31 +785,79 @@ fun ControlsContent(
                 }
             }
 
-            Slider(
-                value = (sliderPosition ?: position).toFloat(),
-                valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
-                onValueChange = {
-                    sliderPosition = it.toLong()
-                    // slider too granular for this haptic to feel right
-//                    haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
-                },
-                onValueChangeFinished = {
-                    sliderPosition?.let {
-                        playerConnection.player.seekTo(it)
-                        position = it
+            // Check if current playlist is "To Listen" - seeking should be disabled
+            val isToListenPlaylist = remember(queueBoard) {
+                derivedStateOf {
+                    queueBoard.getCurrentQueue()?.playlistId == com.dd3boh.outertune.db.entities.PlaylistEntity.TO_LISTEN_PLAYLIST_ID
+                }
+            }.value
+            
+            if (isToListenPlaylist) {
+                // Show non-interactive progress indicator for To Listen playlist
+                val inactiveColor = MaterialTheme.colorScheme.surfaceVariant
+                val activeColor = MaterialTheme.colorScheme.primary
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = PlayerHorizontalPadding)
+                        .height(10.dp)
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val progress = if (duration > 0) {
+                            ((sliderPosition ?: position).toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+                        } else 0f
+                        
+                        // Draw inactive track
+                        drawLine(
+                            color = inactiveColor,
+                            start = Offset(0f, size.height / 2),
+                            end = Offset(size.width, size.height / 2),
+                            strokeWidth = size.height,
+                            cap = StrokeCap.Round
+                        )
+                        
+                        // Draw active track
+                        drawLine(
+                            color = activeColor,
+                            start = Offset(0f, size.height / 2),
+                            end = Offset(size.width * progress, size.height / 2),
+                            strokeWidth = size.height,
+                            cap = StrokeCap.Round
+                        )
                     }
-                    sliderPosition = null
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                },
-                thumb = { Spacer(modifier = Modifier.size(0.dp)) },
-                track = { sliderState ->
-                    PlayerSliderTrack(
-                        sliderState = sliderState,
-                        colors = SliderDefaults.colors()
-                    )
-                },
-                modifier = Modifier.padding(horizontal = PlayerHorizontalPadding)
-            )
+                }
+            } else {
+                // Show interactive slider for other playlists
+                Slider(
+                    value = (sliderPosition ?: position).toFloat(),
+                    valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
+                    onValueChange = {
+                        if (!isLiveMode) {
+                            sliderPosition = it.toLong()
+                        }
+                    },
+                    onValueChangeFinished = {
+                        if (!isLiveMode) {
+                            sliderPosition?.let {
+                                playerConnection.player.seekTo(it)
+                                position = it
+                            }
+                            sliderPosition = null
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        }
+                    },
+                    thumb = { Spacer(modifier = Modifier.size(0.dp)) },
+                    track = { sliderState ->
+                        PlayerSliderTrack(
+                            sliderState = sliderState,
+                            colors = SliderDefaults.colors()
+                        )
+                    },
+                    enabled = !isLiveMode,
+                    modifier = Modifier.padding(horizontal = PlayerHorizontalPadding)
+                )
+            }
 
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -856,17 +912,19 @@ fun ControlsContent(
                 Box(modifier = Modifier.weight(1f)) {
                     ResizableIconButton(
                         icon = Icons.Rounded.SkipPrevious,
-                        enabled = canSkipPrevious,
+                        enabled = canSkipPrevious && !isLiveMode,
                         modifier = Modifier
                             .size(32.dp)
                             .align(Alignment.Center),
                         color = onBackgroundColor,
                         onClick = {
-                            if (playerConnection.player.currentMediaItem == null) {
-                                queueBoard.setCurrQueue()
+                            if (!isLiveMode) {
+                                if (playerConnection.player.currentMediaItem == null) {
+                                    queueBoard.setCurrQueue()
+                                }
+                                playerConnection.player.seekToPrevious()
+                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
                             }
-                            playerConnection.player.seekToPrevious()
-                            haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
                         }
                     )
                 }
@@ -879,7 +937,7 @@ fun ControlsContent(
                                 .size(32.dp)
                                 .align(Alignment.Center),
                             color = onBackgroundColor,
-                            enabled = playerConnection.player.currentMediaItem != null,
+                            enabled = playerConnection.player.currentMediaItem != null && !isToListenPlaylist,
                             onClick = {
                                 playerConnection.player.seekTo(playerConnection.player.currentPosition - seekIncrement.millisec)
                             }
@@ -929,7 +987,7 @@ fun ControlsContent(
                                 .size(32.dp)
                                 .align(Alignment.Center),
                             color = onBackgroundColor,
-                            enabled = playerConnection.player.currentMediaItem != null,
+                            enabled = playerConnection.player.currentMediaItem != null && !isToListenPlaylist,
                             onClick = {
                                 //ExoPlayer seek increment can only be set in builder
                                 //playerConnection.player.seekForward()
@@ -944,14 +1002,16 @@ fun ControlsContent(
                 Box(modifier = Modifier.weight(1f)) {
                     ResizableIconButton(
                         icon = Icons.Rounded.SkipNext,
-                        enabled = canSkipNext,
+                        enabled = canSkipNext && !isLiveMode,
                         modifier = Modifier
                             .size(32.dp)
                             .align(Alignment.Center),
                         color = onBackgroundColor,
                         onClick = {
-                            playerConnection.player.seekToNext()
-                            haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                            if (!isLiveMode) {
+                                playerConnection.player.seekToNext()
+                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                            }
                         }
                     )
                 }

@@ -360,4 +360,27 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="speed_medium">Medium</string>
     <string name="speed_fast">Fast</string>
     <string name="speed_very_fast">Very fast</string>
+
+<!-- Send to Friend feature -->
+    <string name="send_to_friends">Send to friends</string>
+    <plurals name="send_n_songs_to_friends">
+        <item quantity="one">Send %d song to friends</item>
+        <item quantity="other">Send %d songs to friends</item>
+    </plurals>
+    <plurals name="send_to_n_friends">
+        <item quantity="one">Send to %d friend</item>
+        <item quantity="other">Send to %d friends</item>
+    </plurals>
+    <string name="send">Send</string>
+    <string name="no_friends_to_send">You don\'t have any friends yet. Add friends in the Social tab to share songs!</string>
+    <string name="select_friends_to_send">Select friends to send songs to:</string>
+    <string name="selected">Selected</string>
+    <string name="not_selected">Not selected</string>
+    <string name="friend_listened_to_song">Friend listened to your song!</string>
+    <string name="friend_listened_to_song_message">%1$s listened to the song you sent: %2$s!</string>
+    <string name="friend_listened_notification_title">Friend listened to your song!</string>
+    <string name="song_listened_notifications">Song Listened Notifications</string>
+    <string name="song_listened_notifications_description">Get notified when friends listen to songs you sent them</string>
+    <string name="song_listened_channel_name">Friend Listened Notifications</string>
+    <string name="song_listened_channel_description">Notifications when friends listen to songs you sent</string>
 </resources>

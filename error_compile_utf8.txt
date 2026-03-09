@@ -1,0 +1,80 @@
+﻿Calculating task graph as no cached configuration is available for tasks: :app:compileFullDebug
+
+[Incubating] Problems report is available at: file:///C:/Users/emanf/repos/musicapp/OuterTune/build/reports/problems/problems-report.html
+./gradlew : 
+At line:1 char:1
++ ./gradlew 
+:app:compileFullDebug 
+--console=plain > 
+error_compile.txt 2 ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecified: (:St  
+  ring) [], RemoteExcept   
+ ion
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+FAILURE: Build failed with 
+an exception.
+
+* What went wrong:
+Cannot locate tasks that 
+match 
+':app:compileFullDebug' as 
+task 'compileFullDebug' is 
+ambiguous in project 
+':app'. Candidates are: 'co
+mpileFullDebugAndroidTestJa
+vaWithJavac', 'compileFullD
+ebugAndroidTestKotlin', 'co
+mpileFullDebugAndroidTestNa
+vigationResources', 'compil
+eFullDebugAndroidTestShader
+s', 'compileFullDebugAndroi
+dTestSources', 'compileFull
+DebugArtProfile', 'compileF
+ullDebugJavaWithJavac', 
+'compileFullDebugKotlin', '
+compileFullDebugNavigationR
+esources', 
+'compileFullDebugShaders', 
+'compileFullDebugSources', 
+'compileFullDebugUnitTestJa
+vaWithJavac', 'compileFullD
+ebugUnitTestKotlin', 'compi
+leFullDebugUnitTestSources'
+.
+
+* Try:
+> Run gradlew tasks to get 
+a list of available tasks.
+> For more on name 
+expansion, please refer to 
+https://docs.gradle.org/9.2
+.0/userguide/command_line_i
+nterface.html#sec:name_abbr
+eviation in the Gradle 
+documentation.
+> Run with --stacktrace 
+option to get the stack 
+trace.
+> Run with --info or 
+--debug option to get more 
+log output.
+> Run with --scan to 
+generate a Build Scan 
+(powered by Develocity).
+> Get more help at 
+https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.2.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 13s
+Configuration cache entry stored.

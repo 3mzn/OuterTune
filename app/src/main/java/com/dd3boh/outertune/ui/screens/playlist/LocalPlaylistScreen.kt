@@ -751,13 +751,16 @@ fun LocalPlaylistHeader(
                 )
 
                 Row {
-                    IconButton(
-                        onClick = onShowEditDialog
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Edit,
-                            contentDescription = null
-                        )
+                    // Only show edit button if not "To Listen" playlist
+                    if (playlist.id != com.dd3boh.outertune.db.entities.PlaylistEntity.TO_LISTEN_PLAYLIST_ID) {
+                        IconButton(
+                            onClick = onShowEditDialog
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = null
+                            )
+                        }
                     }
 
                     if (playlist.playlist.browseId != null) {

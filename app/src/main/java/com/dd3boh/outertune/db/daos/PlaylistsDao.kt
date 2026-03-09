@@ -94,6 +94,13 @@ interface PlaylistsDao {
     """)
     fun playlistIdBySongs(songs: List<String>): Flow<List<String>>
 
+    @Query("""
+        SELECT COUNT(*) 
+        FROM playlist_song_map 
+        WHERE playlistId = :playlistId AND songId = :songId
+    """)
+    suspend fun isSongInPlaylist(playlistId: String, songId: String): Int
+
     @RawQuery(observedEntities = [PlaylistEntity::class])
     fun _getPlaylists(query: SupportSQLiteQuery): Flow<List<Playlist>>
 

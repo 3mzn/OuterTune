@@ -99,6 +99,7 @@ import androidx.compose.ui.util.fastForEach
 import androidx.core.net.toUri
 import androidx.core.util.Consumer
 import androidx.core.view.WindowCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -130,6 +131,8 @@ import com.dd3boh.outertune.playback.DownloadUtil
 import com.dd3boh.outertune.playback.MediaControllerViewModel
 import com.dd3boh.outertune.playback.MusicService
 import com.dd3boh.outertune.playback.PlayerConnection
+import com.dd3boh.outertune.viewmodels.SongSharingViewModel
+import com.dd3boh.outertune.viewmodels.SongListenedNotificationViewModel
 import com.dd3boh.outertune.ui.component.rememberBottomSheetState
 import com.dd3boh.outertune.ui.component.shimmer.ShimmerTheme
 import com.dd3boh.outertune.ui.menu.BottomSheetMenu
@@ -138,6 +141,7 @@ import com.dd3boh.outertune.ui.player.BottomSheetPlayer
 import com.dd3boh.outertune.ui.screens.AccountScreen
 import com.dd3boh.outertune.ui.screens.AlbumScreen
 import com.dd3boh.outertune.ui.screens.BrowseScreen
+import com.dd3boh.outertune.ui.screens.FriendRequestsScreen
 import com.dd3boh.outertune.ui.screens.HistoryScreen
 import com.dd3boh.outertune.ui.screens.HomeScreen
 import com.dd3boh.outertune.ui.screens.LoginScreen
@@ -145,7 +149,11 @@ import com.dd3boh.outertune.ui.screens.MoodAndGenresScreen
 import com.dd3boh.outertune.ui.screens.PlayerScreen
 import com.dd3boh.outertune.ui.screens.Screens
 import com.dd3boh.outertune.ui.screens.SetupWizard
+import com.dd3boh.outertune.ui.screens.SocialScreen
+import com.dd3boh.outertune.ui.screens.SpotifyLoginScreen
 import com.dd3boh.outertune.ui.screens.StatsScreen
+import com.dd3boh.outertune.ui.screens.SyncScreen
+import com.dd3boh.outertune.ui.screens.UserListScreen
 import com.dd3boh.outertune.ui.screens.YouTubeBrowseScreen
 import com.dd3boh.outertune.ui.screens.artist.ArtistAlbumsScreen
 import com.dd3boh.outertune.ui.screens.artist.ArtistItemsScreen
@@ -203,12 +211,17 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var syncUtils: SyncUtils
 
+    @Inject
+    lateinit var songSharingRepository: com.dd3boh.outertune.social.SongSharingRepository
+
     lateinit var activityLauncher: ActivityLauncherHelper
     lateinit var connectivityObserver: NetworkConnectivityObserver
 
     private var playerConnection by mutableStateOf<PlayerConnection?>(null)
 
     val controllerViewModel: MediaControllerViewModel by viewModels()
+    val songSharingViewModel: SongSharingViewModel by viewModels()
+    val songListenedNotificationViewModel: SongListenedNotificationViewModel by viewModels()
 
     // storage permission helpers
     val permissionLauncher =
@@ -249,6 +262,15 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         activityLauncher = ActivityLauncherHelper(this)
+
+        // Initialize "To Listen" playlist for song sharing feature
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                songSharingRepository.initializeToListenPlaylist()
+            } catch (e: Exception) {
+                Log.e(MAIN_TAG, "Error initializing To Listen playlist", e)
+            }
+        }
 
         setContent {
             Log.v(MAIN_TAG, "RC-1")
@@ -297,6 +319,17 @@ class MainActivity : ComponentActivity() {
                         this@MainActivity, database, downloadUtil, coroutineScope, playerConnection,
                         snackbarHostState
                     )
+                }
+            }
+
+            // Initialize song sharing feature - activates Firestore listener for real-time updates
+            // When app opens, Firestore automatically fetches all pending songs (catch-up)
+            val incomingSongs by songSharingViewModel.incomingSongs.collectAsState()
+            
+            // Log incoming songs for debugging
+            LaunchedEffect(incomingSongs) {
+                if (incomingSongs.isNotEmpty()) {
+                    Log.d(MAIN_TAG, "Received ${incomingSongs.size} incoming songs")
                 }
             }
 
@@ -409,6 +442,14 @@ class MainActivity : ComponentActivity() {
 
                     DisposableEffect(Unit) {
                         val listener = Consumer<Intent> { intent ->
+                            // Handle deep link navigation to Social screen
+                            val navigateTo = intent.getStringExtra("navigate_to")
+                            if (navigateTo == "social") {
+                                navController.navigate("social")
+                                return@Consumer
+                            }
+                            
+                            // Handle YouTube links
                             val uri =
                                 intent.data ?: intent.extras?.getString(Intent.EXTRA_TEXT)?.toUri()
                                 ?: return@Consumer
@@ -510,7 +551,7 @@ class MainActivity : ComponentActivity() {
                                         HomeScreen(navController)
                                     }
                                     composable(Screens.Songs.route) {
-                                        LibrarySongsScreen(navController)
+                                        LibrarySongsScreen(navController = navController)
                                     }
                                     composable(Screens.Folders.route) {
                                         LibraryFoldersScreen(navController, scrollBehavior)
@@ -539,6 +580,15 @@ class MainActivity : ComponentActivity() {
                                     }
                                     composable(Screens.Player.route) {
                                         PlayerScreen(navController, bottomPadding = getNavPadding())
+                                    }
+                                    composable(Screens.Sync.route) {
+                                        SyncScreen(navController, scrollBehavior)
+                                    }
+                                    composable(Screens.Social.route) {
+                                        SocialScreen(navController)
+                                    }
+                                    composable("spotify_login") {
+                                        SpotifyLoginScreen(navController)
                                     }
                                     composable("history") {
                                         HistoryScreen(navController)
@@ -729,6 +779,14 @@ class MainActivity : ComponentActivity() {
                                     }
                                     composable("login") {
                                         LoginScreen(navController)
+                                    }
+
+                                    composable("social_users") {
+                                        UserListScreen(navController)
+                                    }
+
+                                    composable("social_requests") {
+                                        FriendRequestsScreen(navController)
                                     }
 
                                     composable("setup_wizard") {

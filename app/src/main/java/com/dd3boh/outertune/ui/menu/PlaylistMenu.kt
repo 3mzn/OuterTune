@@ -280,11 +280,14 @@ fun PlaylistMenu(
                 showEditDialog = true
             }
         }
-        GridMenuItem(
-            icon = Icons.Rounded.PlaylistRemove,
-            title = R.string.delete
-        ) {
-            showDeletePlaylistDialog = true
+        // Only show delete option if not "To Listen" playlist
+        if (playlist.playlist.id != com.dd3boh.outertune.db.entities.PlaylistEntity.TO_LISTEN_PLAYLIST_ID) {
+            GridMenuItem(
+                icon = Icons.Rounded.PlaylistRemove,
+                title = R.string.delete
+            ) {
+                showDeletePlaylistDialog = true
+            }
         }
 
         playlist.playlist.shareLink?.let { shareLink ->

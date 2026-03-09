@@ -77,6 +77,7 @@ import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -252,6 +253,13 @@ fun BoxScope.QueueContent(
     val menuState = LocalMenuState.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val qb by playerConnection.queueBoard.collectAsState()
+
+    // Check if current playlist is "To Listen" - seeking should be disabled
+    val isToListenPlaylist = remember(qb) {
+        derivedStateOf {
+            qb.getCurrentQueue()?.playlistId == com.dd3boh.outertune.db.entities.PlaylistEntity.TO_LISTEN_PLAYLIST_ID
+        }
+    }.value
 
     // preferences
     var lockQueue by rememberPreference(LockQueueKey, defaultValue = false)
@@ -1042,6 +1050,7 @@ fun BoxScope.QueueContent(
                                 modifier = Modifier
                                     .size(32.dp)
                                     .align(Alignment.Center),
+                                enabled = !isToListenPlaylist,
                                 onClick = {
                                     playerConnection.player.seekTo(playerConnection.player.currentPosition - seekIncrement.millisec)
                                 }
@@ -1081,6 +1090,7 @@ fun BoxScope.QueueContent(
                                 modifier = Modifier
                                     .size(32.dp)
                                     .align(Alignment.Center),
+                                enabled = !isToListenPlaylist,
                                 onClick = {
                                     playerConnection.player.seekTo(playerConnection.player.currentPosition + seekIncrement.millisec)
                                 }

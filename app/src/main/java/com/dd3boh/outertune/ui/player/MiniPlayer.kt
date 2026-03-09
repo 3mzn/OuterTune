@@ -76,6 +76,7 @@ import kotlin.math.roundToInt
 @Composable
 fun MiniPlayer(
     modifier: Modifier = Modifier,
+    isLiveMode: Boolean = false,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val queueBoard by playerConnection.queueBoard.collectAsState()
@@ -159,18 +160,20 @@ fun MiniPlayer(
             }
 
             IconButton(
-                enabled = canSkipNext,
+                enabled = canSkipNext && !isLiveMode,
                 onClick = {
-                    if (playerConnection.player.currentMediaItem == null) {
-                        queueBoard.setCurrQueue()
-                        playerConnection.player.playWhenReady = true
+                    if (!isLiveMode) {
+                        if (playerConnection.player.currentMediaItem == null) {
+                            queueBoard.setCurrQueue()
+                            playerConnection.player.playWhenReady = true
+                        }
+                        playerConnection.player.seekToNext()
                     }
-                    playerConnection.player.seekToNext()
                 }
             ) {
                 Icon(
                     painter = painterResource(R.drawable.skip_next),
-                    tint = iconButtonColor.copy(alpha = (if (canSkipNext) 1f else 0.5f)),
+                    tint = iconButtonColor.copy(alpha = (if (canSkipNext && !isLiveMode) 1f else 0.5f)),
                     contentDescription = null
                 )
             }

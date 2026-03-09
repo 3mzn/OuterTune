@@ -1,0 +1,62 @@
+async function ultimateScrape() {
+    console.log("🚀 Forced Scrape Started. If the page doesn't move, scroll manually!");
+    
+    const trackMap = new Map();
+    let lastSize = 0;
+    let idleCount = 0;
+
+    const scrollAll = () => {
+        const elements = document.querySelectorAll('*');
+        for (let el of elements) {
+            if (el.scrollHeight > el.clientHeight) {
+                el.scrollBy(0, 800);
+            }
+        }
+    };
+
+    const harvest = () => {
+        const rows = document.querySelectorAll('div[data-testid="tracklist-row"]');
+        rows.forEach(row => {
+            const titleElement = row.querySelector('div[dir="auto"].standalone-ellipsis-one-line, a[data-testid="internal-track-link"] div');
+            const title = titleElement?.textContent?.trim();
+            
+            // Fixed Artist Logic: Use a Set to store unique names found within the row
+            const artistLinks = row.querySelectorAll('a[href^="/artist/"]');
+            const uniqueArtists = new Set();
+            
+            artistLinks.forEach(link => {
+                const name = link.textContent?.trim();
+                if (name) uniqueArtists.add(name);
+            });
+
+            const artistString = Array.from(uniqueArtists).join(", ");
+            
+            if (title && artistString) {
+                // Keying by title+artist to avoid duplicates from virtual list jumps
+                trackMap.set(`${title}-${artistString}`, { title, artist: artistString });
+            }
+        });
+    };
+
+    while (idleCount < 20) {
+        harvest();
+        scrollAll();
+        
+        if (trackMap.size > lastSize) {
+            console.log(` Collected ${trackMap.size} tracks...`);
+            lastSize = trackMap.size;
+            idleCount = 0;
+        } else {
+            idleCount++;
+            if (idleCount === 5) console.log("⚠️ Stuck? Try scrolling the playlist once with your mouse.");
+        }
+
+        await new Promise(r => setTimeout(r, 800));
+    }
+
+    const result = Array.from(trackMap.values());
+    console.log(`\n\n🎉 SUCCESS! Total tracks: ${result.length}`);
+    console.log(JSON.stringify(result, null, 2));
+}
+
+ultimateScrape();

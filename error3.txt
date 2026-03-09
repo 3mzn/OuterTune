@@ -1,0 +1,168 @@
+Reusing configuration cache.
+> Task :innertube:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :ffMetadataEx:preBuild UP-TO-DATE
+> Task :ffMetadataEx:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :taglib:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :kugou:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :lrclib:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :taglib:preBuild UP-TO-DATE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :lrclib:processResources NO-SOURCE
+> Task :material-color-utilities:processResources NO-SOURCE
+> Task :ffMetadataEx:preDebugBuild UP-TO-DATE
+> Task :kugou:processResources NO-SOURCE
+> Task :app:preFullDebugBuild UP-TO-DATE
+> Task :taglib:preDebugBuild UP-TO-DATE
+> Task :innertube:processResources NO-SOURCE
+> Task :app:prepareLibraryDefinitionsFullDebug UP-TO-DATE
+> Task :ffMetadataEx:generateDebugResValues UP-TO-DATE
+> Task :app:createFullDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:javaPreCompileFullDebug UP-TO-DATE
+> Task :ffMetadataEx:writeDebugAarMetadata UP-TO-DATE
+> Task :app:generateFullDebugResValues UP-TO-DATE
+> Task :app:generateFullDebugBuildConfig UP-TO-DATE
+> Task :ffMetadataEx:processDebugNavigationResources UP-TO-DATE
+> Task :ffMetadataEx:generateDebugResources UP-TO-DATE
+> Task :taglib:generateDebugResValues UP-TO-DATE
+> Task :ffMetadataEx:extractDebugSupportedLocales UP-TO-DATE
+> Task :taglib:writeDebugAarMetadata UP-TO-DATE
+> Task :ffMetadataEx:processDebugManifest UP-TO-DATE
+> Task :ffMetadataEx:javaPreCompileDebug UP-TO-DATE
+> Task :taglib:processDebugNavigationResources UP-TO-DATE
+> Task :taglib:generateDebugResources UP-TO-DATE
+> Task :app:extractDeepLinksFullDebug UP-TO-DATE
+> Task :taglib:extractDeepLinksDebug UP-TO-DATE
+> Task :taglib:javaPreCompileDebug UP-TO-DATE
+> Task :ffMetadataEx:extractDeepLinksDebug UP-TO-DATE
+> Task :taglib:extractDebugSupportedLocales UP-TO-DATE
+> Task :taglib:processDebugManifest UP-TO-DATE
+> Task :app:mergeFullDebugShaders UP-TO-DATE
+> Task :ffMetadataEx:packageDebugResources UP-TO-DATE
+> Task :taglib:mergeDebugShaders UP-TO-DATE
+> Task :app:compileFullDebugShaders NO-SOURCE
+> Task :app:l8DexDesugarLibFullDebug UP-TO-DATE
+> Task :app:generateFullDebugAssets UP-TO-DATE
+> Task :ffMetadataEx:mergeDebugShaders UP-TO-DATE
+> Task :ffMetadataEx:parseDebugLocalResources UP-TO-DATE
+> Task :taglib:compileDebugShaders NO-SOURCE
+> Task :ffMetadataEx:compileDebugLibraryResources UP-TO-DATE
+> Task :taglib:packageDebugResources UP-TO-DATE
+> Task :ffMetadataEx:compileDebugShaders NO-SOURCE
+> Task :taglib:generateDebugAssets UP-TO-DATE
+> Task :ffMetadataEx:generateDebugAssets UP-TO-DATE
+> Task :material-color-utilities:compileJava UP-TO-DATE
+> Task :taglib:compileDebugLibraryResources UP-TO-DATE
+> Task :material-color-utilities:classes UP-TO-DATE
+> Task :taglib:parseDebugLocalResources UP-TO-DATE
+> Task :ffMetadataEx:generateDebugRFile UP-TO-DATE
+> Task :taglib:mergeDebugAssets UP-TO-DATE
+> Task :lrclib:compileKotlin UP-TO-DATE
+> Task :app:desugarFullDebugFileDependencies UP-TO-DATE
+> Task :material-color-utilities:jar UP-TO-DATE
+> Task :app:generateFullDebugResources UP-TO-DATE
+> Task :lrclib:compileJava NO-SOURCE
+> Task :app:extractFullDebugSupportedLocales UP-TO-DATE
+> Task :taglib:generateDebugRFile UP-TO-DATE
+> Task :lrclib:classes UP-TO-DATE
+> Task :app:checkFullDebugDuplicateClasses UP-TO-DATE
+> Task :app:mapFullDebugSourceSetPaths UP-TO-DATE
+> Task :lrclib:jar UP-TO-DATE
+> Task :app:processFullDebugNavigationResources UP-TO-DATE
+> Task :ffMetadataEx:mergeDebugAssets UP-TO-DATE
+> Task :app:compileFullDebugNavigationResources UP-TO-DATE
+> Task :app:mergeFullDebugJniLibFolders UP-TO-DATE
+> Task :app:checkFullDebugAarMetadata UP-TO-DATE
+> Task :kugou:compileKotlin UP-TO-DATE
+> Task :app:processFullDebugMainManifest UP-TO-DATE
+> Task :kugou:compileJava NO-SOURCE
+> Task :kugou:classes UP-TO-DATE
+> Task :taglib:compileDebugKotlin UP-TO-DATE
+> Task :ffMetadataEx:mergeDebugJniLibFolders UP-TO-DATE
+> Task :kugou:jar UP-TO-DATE
+> Task :taglib:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:mergeFullDebugAssets UP-TO-DATE
+> Task :taglib:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :app:mergeExtDexFullDebug UP-TO-DATE
+> Task :taglib:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :app:processFullDebugManifest UP-TO-DATE
+> Task :app:compressFullDebugAssets UP-TO-DATE
+> Task :taglib:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :app:processFullDebugManifestForPackage UP-TO-DATE
+> Task :app:validateSigningFullDebug UP-TO-DATE
+> Task :taglib:processDebugJavaRes UP-TO-DATE
+> Task :app:writeFullDebugAppMetadata UP-TO-DATE
+> Task :taglib:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:writeFullDebugSigningConfigVersions UP-TO-DATE
+> Task :innertube:compileKotlin UP-TO-DATE
+> Task :taglib:createFullJarDebug UP-TO-DATE
+> Task :app:generateFullDebugLocaleConfig UP-TO-DATE
+> Task :innertube:compileJava NO-SOURCE
+> Task :innertube:classes UP-TO-DATE
+> Task :ffMetadataEx:compileDebugKotlin UP-TO-DATE
+> Task :innertube:jar UP-TO-DATE
+> Task :ffMetadataEx:processDebugJavaRes UP-TO-DATE
+> Task :ffMetadataEx:compileDebugJavaWithJavac UP-TO-DATE
+> Task :ffMetadataEx:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :ffMetadataEx:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :ffMetadataEx:createFullJarDebug UP-TO-DATE
+> Task :ffMetadataEx:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :app:packageFullDebugResources UP-TO-DATE
+> Task :app:parseFullDebugLocalResources UP-TO-DATE
+> Task :app:mergeLibDexFullDebug UP-TO-DATE
+> Task :app:mergeFullDebugResources UP-TO-DATE
+> Task :ffMetadataEx:configureCMakeDebug[x86]
+> Task :ffMetadataEx:configureCMakeDebug[x86_64]
+> Task :taglib:configureCMakeDebug[armeabi-v7a]
+> Task :ffMetadataEx:configureCMakeDebug[arm64-v8a]
+> Task :taglib:configureCMakeDebug[x86_64]
+> Task :taglib:configureCMakeDebug[arm64-v8a]
+> Task :ffMetadataEx:configureCMakeDebug[armeabi-v7a]
+> Task :taglib:configureCMakeDebug[x86]
+> Task :app:processFullDebugResources UP-TO-DATE
+> Task :app:kspFullDebugKotlin UP-TO-DATE
+> Task :ffMetadataEx:buildCMakeDebug[x86_64]
+> Task :ffMetadataEx:buildCMakeDebug[arm64-v8a]
+> Task :taglib:buildCMakeDebug[x86]
+> Task :ffMetadataEx:buildCMakeDebug[armeabi-v7a]
+> Task :ffMetadataEx:buildCMakeDebug[x86]
+> Task :taglib:buildCMakeDebug[arm64-v8a]
+> Task :taglib:buildCMakeDebug[x86_64]
+> Task :taglib:buildCMakeDebug[armeabi-v7a]
+> Task :taglib:mergeDebugNativeLibs UP-TO-DATE
+> Task :taglib:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :ffMetadataEx:mergeDebugNativeLibs UP-TO-DATE
+> Task :ffMetadataEx:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :app:mergeFullDebugNativeLibs UP-TO-DATE
+> Task :app:stripFullDebugDebugSymbols UP-TO-DATE
+> Task :app:compileFullDebugKotlin UP-TO-DATE
+> Task :app:compileFullDebugJavaWithJavac UP-TO-DATE
+> Task :app:hiltAggregateDepsFullDebug UP-TO-DATE
+> Task :app:hiltJavaCompileFullDebug UP-TO-DATE
+> Task :app:transformFullDebugClassesWithAsm UP-TO-DATE
+> Task :app:processFullDebugJavaRes UP-TO-DATE
+> Task :app:dexBuilderFullDebug UP-TO-DATE
+> Task :app:mergeProjectDexFullDebug UP-TO-DATE
+> Task :app:mergeFullDebugJavaResource UP-TO-DATE
+> Task :app:mergeFullDebugGlobalSynthetics UP-TO-DATE
+> Task :app:packageFullDebug UP-TO-DATE
+> Task :app:createFullDebugApkListingFileRedirect UP-TO-DATE
+
+> Task :app:installFullDebug FAILED
+Skipping device 'ylwwmn85w4ifb6z9' (ylwwmn85w4ifb6z9): Device is OFFLINE.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:installFullDebug'.
+> com.android.builder.testing.api.DeviceException: No online devices found.
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to generate a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 4s
+119 actionable tasks: 17 executed, 102 up-to-date
+Configuration cache entry reused.

@@ -76,6 +76,8 @@ import com.dd3boh.outertune.youtubeNavigator
 fun SearchBarContainer(
     navController: NavController,
     scrollBehavior: TopAppBarScrollBehavior,
+    isSelectionMode: Boolean = false,
+    onSelectionComplete: (List<String>) -> Unit = {},
 ) {
     Log.v("SearchBarContainer", "SB-1")
     val context = LocalContext.current
@@ -293,6 +295,8 @@ fun SearchBarContainer(
                             }
                         },
                         onDismiss = { onSearchActiveChange(false) },
+                        isSelectionMode = isSelectionMode,
+                        onSelectionComplete = onSelectionComplete,
                     )
                 }
             }

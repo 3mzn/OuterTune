@@ -219,8 +219,10 @@ fun SongMenu(
             showChoosePlaylistDialog = true
         }
 
-        if (playlistSong != null && (playlist?.playlist?.isLocal == true
-                    || (playlistSong.song.song.isLocal || syncMode == SyncMode.RW))
+        // Only show remove option if not "To Listen" playlist
+        if (playlistSong != null && 
+            playlist?.playlist?.id != com.dd3boh.outertune.db.entities.PlaylistEntity.TO_LISTEN_PLAYLIST_ID &&
+            (playlist?.playlist?.isLocal == true || (playlistSong.song.song.isLocal || syncMode == SyncMode.RW))
         ) {
             GridMenuItem(
                 icon = Icons.Rounded.PlaylistRemove,

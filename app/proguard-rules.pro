@@ -88,6 +88,13 @@
 -keep class wah.mikooomich.ffMetadataEx.** { *; }
 -keep class com.kyant.taglib.** { *; }
 
+## Firebase / Google services
+-keep class com.google.rpc.** { *; }
+-keep class com.google.type.** { *; }
+-keep public class com.google.rpc.Status { *; }
+-keep public class com.google.type.LatLng { *; }
+-keep public class com.google.type.LatLng$Builder { *; }
+
 ## Quality of life for logs
 -keepclasseswithmembernames class com.dd3boh.outertune.playback.**
 -keepclasseswithmembernames class com.dd3boh.outertune.utils.scanners.**

@@ -1,0 +1,58 @@
+{
+  "tracks": [
+    {
+      "title": "Bohemian Rhapsody",
+      "artist": "Queen"
+    },
+    {
+      "title": "Stairway to Heaven",
+      "artist": "Led Zeppelin"
+    },
+    {
+      "title": "Hotel California",
+      "artist": "Eagles"
+    }
+  ]
+}
+[
+  {
+    "title": "Glue Song",
+    "artist": "beabadoobee"
+  },
+  {
+    "title": "From The Start",
+    "artist": "Laufey"
+  },
+  {
+    "title": "double take",
+    "artist": "Dhruv"
+  },
+  {
+    "title": "Sweater Weather",
+    "artist": "The Neighbourhood"
+  },
+  {
+    "title": "Espresso",
+    "artist": "Sabrina Carpenter"
+  },
+  {
+    "title": "Ditto",
+    "artist": "NewJeans"
+  },
+  {
+    "title": "Dark Red",
+    "artist": "Steve Lacy"
+  },
+  {
+    "title": "Apocalypse",
+    "artist": "Cigarettes After Sex"
+  },
+  {
+    "title": "UNDERSTAND",
+    "artist": "keshi"
+  },
+  {
+    "title": "Cherry Wine",
+    "artist": "grentperez"
+  }
+]

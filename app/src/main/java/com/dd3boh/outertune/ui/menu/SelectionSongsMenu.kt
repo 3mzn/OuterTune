@@ -1,5 +1,6 @@
 package com.dd3boh.outertune.ui.menu
 
+import android.util.Log
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -13,6 +14,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.LibraryAddCheck
+import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -42,11 +44,35 @@ import com.dd3boh.outertune.extensions.toMediaItem
 import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.playback.ExoDownloadService
 import com.dd3boh.outertune.playback.queues.ListQueue
+import com.dd3boh.outertune.social.SongSharingRepository
+import com.dd3boh.outertune.social.SocialRepository
 import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
 import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
 import com.dd3boh.outertune.ui.dialog.DefaultDialog
+import com.dd3boh.outertune.ui.dialog.SendToFriendsDialog
 import com.dd3boh.outertune.utils.getDownloadState
+import com.google.firebase.auth.FirebaseAuth
+import androidx.compose.runtime.rememberCoroutineScope
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface SongSharingRepositoryEntryPoint {
+    fun songSharingRepository(): SongSharingRepository
+}
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface SocialRepositoryEntryPoint {
+    fun socialRepository(): SocialRepository
+}
 
 /**
  * Generic song menu
@@ -65,6 +91,30 @@ fun SelectionMediaMetadataMenu(
     val playerConnection = LocalPlayerConnection.current ?: return
     val queueBoard by playerConnection.queueBoard.collectAsState()
     val syncUtils = LocalSyncUtils.current
+    val coroutineScope = rememberCoroutineScope()
+    
+    // Inject repositories via Hilt
+    val songSharingRepository = remember {
+        try {
+            EntryPointAccessors.fromApplication(
+                context.applicationContext,
+                SongSharingRepositoryEntryPoint::class.java
+            ).songSharingRepository()
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    val socialRepository = remember {
+        try {
+            EntryPointAccessors.fromApplication(
+                context.applicationContext,
+                SocialRepositoryEntryPoint::class.java
+            ).socialRepository()
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     val allInLibrary by remember(selection) { // exclude local songs
         mutableStateOf(selection.isNotEmpty() && selection.all { !it.isLocal && it.inLibrary != null })
@@ -88,6 +138,9 @@ fun SelectionMediaMetadataMenu(
         mutableStateOf(false)
     }
     var showRemoveDownloadDialog by remember {
+        mutableStateOf(false)
+    }
+    var showSendToFriendsDialog by remember {
         mutableStateOf(false)
     }
 
@@ -162,6 +215,16 @@ fun SelectionMediaMetadataMenu(
             title = R.string.add_to_playlist
         ) {
             showChoosePlaylistDialog = true
+        }
+
+        // Send to Friends action
+        if (songSharingRepository != null && FirebaseAuth.getInstance().currentUser != null) {
+            GridMenuItem(
+                icon = Icons.Rounded.Send,
+                title = R.string.send_to_friends
+            ) {
+                showSendToFriendsDialog = true
+            }
         }
 
         if (!allLocal) {
@@ -314,6 +377,63 @@ fun SelectionMediaMetadataMenu(
                     }
                 ) {
                     Text(text = stringResource(android.R.string.ok))
+                }
+            }
+        )
+    }
+
+    if (showSendToFriendsDialog && songSharingRepository != null && socialRepository != null) {
+        val relationshipState by socialRepository.observeRelationships().collectAsState(
+            initial = com.dd3boh.outertune.social.RelationshipState(
+                emptyMap(), emptyMap(), emptySet()
+            )
+        )
+        val allUsers by socialRepository.getAllUsers().collectAsState(initial = emptyList())
+        val friendProfiles = remember(allUsers, relationshipState) {
+            allUsers.filter { it.uid in relationshipState.friends }
+                .associateBy { it.uid }
+        }
+
+        SendToFriendsDialog(
+            songCount = selection.size,
+            relationshipState = relationshipState,
+            friendProfiles = friendProfiles,
+            onDismiss = { showSendToFriendsDialog = false },
+            onSend = { selectedFriendUids ->
+                coroutineScope.launch {
+                    try {
+                        Log.d("SelectionSongsMenu", "📤 Starting send: ${selection.size} songs to ${selectedFriendUids.size} friends")
+                        Log.d("SelectionSongsMenu", "📋 Songs: ${selection.map { it.title }}")
+                        Log.d("SelectionSongsMenu", "👥 Friend UIDs: $selectedFriendUids")
+                        
+                        val successCount = songSharingRepository.sendSongsToFriends(
+                            songs = selection,
+                            friendUids = selectedFriendUids,
+                            friendProfiles = friendProfiles
+                        )
+                        Log.d("SelectionSongsMenu", "✅ Successfully sent $successCount songs")
+                        
+                        withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            android.widget.Toast.makeText(
+                                context,
+                                "Sent $successCount songs to ${selectedFriendUids.size} friends",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        
+                        showSendToFriendsDialog = false
+                        onDismiss()
+                        clearAction()
+                    } catch (e: Exception) {
+                        Log.e("SelectionSongsMenu", "❌ Error sending songs", e)
+                        withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            android.widget.Toast.makeText(
+                                context,
+                                "Error sending songs: ${e.message}",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
                 }
             }
         )

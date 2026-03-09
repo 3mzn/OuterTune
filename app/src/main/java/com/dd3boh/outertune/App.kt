@@ -62,9 +62,20 @@ import kotlinx.coroutines.withContext
 import java.net.Proxy
 import java.util.Locale
 
+import com.dd3boh.outertune.social.SongListenedNotificationManager
+import com.dd3boh.outertune.viewmodels.SongListenedNotificationViewModel
+import com.google.firebase.auth.FirebaseAuth
+import javax.inject.Inject
+
 @HiltAndroidApp
 class App : Application(), SingletonImageLoader.Factory {
     private val TAG = App::class.simpleName.toString()
+
+    @Inject
+    lateinit var songListenedNotificationManager: SongListenedNotificationManager
+
+    @Inject
+    lateinit var auth: FirebaseAuth
 
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
@@ -75,6 +86,14 @@ class App : Application(), SingletonImageLoader.Factory {
         }
 
         instance = this;
+
+        // Initialize notification worker if user is logged in
+        GlobalScope.launch {
+            if (auth.currentUser != null) {
+                Log.d(TAG, "User logged in on app start, starting notification worker")
+                songListenedNotificationManager.startWorker()
+            }
+        }
 
         val locale = Locale.getDefault()
         val languageTag = locale.toLanguageTag().replace("-Hant", "") // replace zh-Hant-* to zh-*
@@ -219,6 +238,14 @@ class App : Application(), SingletonImageLoader.Factory {
                     settings.remove(AccountNameKey)
                     settings.remove(AccountEmailKey)
                     settings.remove(AccountChannelHandleKey)
+                }
+                
+                // Stop notification worker when user logs out
+                try {
+                    instance.songListenedNotificationManager.stopWorker()
+                    Log.d("App", "Stopped notification worker on logout")
+                } catch (e: Exception) {
+                    Log.e("App", "Error stopping notification worker", e)
                 }
             }
         }

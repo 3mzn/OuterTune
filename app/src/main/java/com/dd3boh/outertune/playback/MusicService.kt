@@ -140,6 +140,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -197,11 +198,17 @@ class MusicService : MediaLibraryService(),
     @Inject
     lateinit var syncUtils: SyncUtils
 
+    @Inject
+    lateinit var playbackProgressTracker: PlaybackProgressTracker
+
     lateinit var connectivityObserver: NetworkConnectivityObserver
     val waitingForNetworkConnection = MutableStateFlow(false)
     private val isNetworkConnected = MutableStateFlow(true)
 
     lateinit var sleepTimer: SleepTimer
+
+    // Progress tracking job
+    private var progressTrackingJob: kotlinx.coroutines.Job? = null
 
     // Player vars
     val currentMediaMetadata = MutableStateFlow<MediaMetadata?>(null)
@@ -247,7 +254,11 @@ class MusicService : MediaLibraryService(),
                 addListener(this@MusicService)
                 sleepTimer = SleepTimer(scope, this)
                 addListener(sleepTimer)
+                addListener(playbackProgressTracker)
                 addAnalyticsListener(PlaybackStatsListener(false, this@MusicService))
+
+                // Start progress tracking loop
+                startProgressTracking()
 
                 // misc
                 setOffloadEnabled(dataStore.get(AudioOffloadKey, false))
@@ -626,6 +637,25 @@ class MusicService : MediaLibraryService(),
         )
     }
 
+    /**
+     * Start periodic progress tracking for "To Listen" playlist songs
+     */
+    private fun startProgressTracking() {
+        progressTrackingJob?.cancel()
+        progressTrackingJob = scope.launch {
+            while (isActive) {
+                try {
+                    if (player.isPlaying) {
+                        playbackProgressTracker.trackProgress(player, scope)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in progress tracking loop", e)
+                }
+                delay(1000) // Check every second
+            }
+        }
+    }
+
     private fun createCacheDataSource(): CacheDataSource.Factory {
         return CacheDataSource.Factory()
             .setCache(downloadCache)
@@ -771,12 +801,10 @@ class MusicService : MediaLibraryService(),
             return object : NextRenderersFactory(this@MusicService) {
                 override fun buildAudioSink(
                     context: Context,
-                    pcmEncodingRestrictionLifted: Boolean,
                     enableFloatOutput: Boolean,
                     enableAudioTrackPlaybackParams: Boolean
                 ): AudioSink? {
                     return DefaultAudioSink.Builder(this@MusicService)
-                        .setPcmEncodingRestrictionLifted(pcmEncodingRestrictionLifted)
                         .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                         .setAudioProcessorChain(
                             DefaultAudioSink.DefaultAudioProcessorChain(
@@ -800,12 +828,10 @@ class MusicService : MediaLibraryService(),
             return object : DefaultRenderersFactory(this) {
                 override fun buildAudioSink(
                     context: Context,
-                    pcmEncodingRestrictionLifted: Boolean,
                     enableFloatOutput: Boolean,
                     enableAudioTrackPlaybackParams: Boolean
                 ): AudioSink? {
                     return DefaultAudioSink.Builder(this@MusicService)
-                        .setPcmEncodingRestrictionLifted(pcmEncodingRestrictionLifted)
                         .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                         .setAudioProcessorChain(
                             DefaultAudioSink.DefaultAudioProcessorChain(
@@ -1097,6 +1123,10 @@ class MusicService : MediaLibraryService(),
     override fun onDestroy() {
         Log.i(TAG, "Terminating MusicService.")
         deInitQueue()
+
+        // Cleanup progress tracking
+        progressTrackingJob?.cancel()
+        playbackProgressTracker.cleanup()
 
         mediaSession.player.stop()
         mediaSession.release()

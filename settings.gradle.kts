@@ -1,4 +1,13 @@
 @file:Suppress("UnstableApiUsage")
+
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
 
@@ -36,13 +45,15 @@ include(":taglib")
 //}
 
 
-includeBuild(file("media").toPath().toRealPath().toAbsolutePath().toString()) {
-    dependencySubstitution {
-        substitute(module("androidx.media3:media3-common")).using(project(":lib-common"))
-        substitute(module("androidx.media3:media3-common-ktx")).using(project(":lib-common-ktx"))
-        substitute(module("androidx.media3:media3-datasource-okhttp")).using(project(":lib-datasource-okhttp"))
-        substitute(module("androidx.media3:media3-exoplayer")).using(project(":lib-exoplayer"))
-        substitute(module("androidx.media3:media3-exoplayer-workmanager")).using(project(":lib-exoplayer-workmanager"))
-        substitute(module("androidx.media3:media3-session")).using(project(":lib-session"))
-    }
-}
+// Using standard Media3 from Maven instead of local fork
+// To use the local fork, clone the media submodule and uncomment below:
+//includeBuild(file("media").toPath().toRealPath().toAbsolutePath().toString()) {
+//    dependencySubstitution {
+//        substitute(module("androidx.media3:media3-common")).using(project(":lib-common"))
+//        substitute(module("androidx.media3:media3-common-ktx")).using(project(":lib-common-ktx"))
+//        substitute(module("androidx.media3:media3-datasource-okhttp")).using(project(":lib-datasource-okhttp"))
+//        substitute(module("androidx.media3:media3-exoplayer")).using(project(":lib-exoplayer"))
+//        substitute(module("androidx.media3:media3-exoplayer-workmanager")).using(project(":lib-exoplayer-workmanager"))
+//        substitute(module("androidx.media3:media3-session")).using(project(":lib-session"))
+//    }
+//}
