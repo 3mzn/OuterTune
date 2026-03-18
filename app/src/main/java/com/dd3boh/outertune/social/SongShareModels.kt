@@ -16,6 +16,8 @@ data class SentSong(
     val songArtist: String = "",
     val songDuration: Int = 0, // in seconds
     val thumbnailUrl: String? = null,
+    val albumId: String? = null,
+    val albumName: String? = null,
     val fromUid: String = "", // Sender's Firebase UID
     val fromUsername: String = "", // Sender's username for display
     val toUid: String = "", // Recipient's Firebase UID
@@ -33,6 +35,8 @@ data class SentSong(
         "songArtist" to songArtist,
         "songDuration" to songDuration,
         "thumbnailUrl" to thumbnailUrl,
+        "albumId" to albumId,
+        "albumName" to albumName,
         "fromUid" to fromUid,
         "fromUsername" to fromUsername,
         "toUid" to toUid,
@@ -54,6 +58,8 @@ data class SentSong(
                 songArtist = map["songArtist"] as? String ?: "",
                 songDuration = (map["songDuration"] as? Long)?.toInt() ?: 0,
                 thumbnailUrl = map["thumbnailUrl"] as? String,
+                albumId = map["albumId"] as? String,
+                albumName = map["albumName"] as? String,
                 fromUid = map["fromUid"] as? String ?: "",
                 fromUsername = map["fromUsername"] as? String ?: "",
                 toUid = map["toUid"] as? String ?: "",
@@ -64,6 +70,13 @@ data class SentSong(
             )
         }
     }
+}
+
+/**
+ * Result of attempting to add a song to the To Listen playlist
+ */
+enum class AddSongResult {
+    SUCCESS, DUPLICATE, ERROR
 }
 
 /**

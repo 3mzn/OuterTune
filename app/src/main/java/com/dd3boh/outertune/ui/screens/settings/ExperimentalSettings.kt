@@ -72,6 +72,7 @@ import com.dd3boh.outertune.constants.OobeStatusKey
 import com.dd3boh.outertune.constants.TabletUiKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.constants.VisitorDataKey
+import com.dd3boh.outertune.social.SongSharingRepository
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
@@ -81,11 +82,21 @@ import com.dd3boh.outertune.ui.dialog.CounterDialog
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.rememberPreference
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface SongSharingRepositoryEntryPoint {
+    fun songSharingRepository(): SongSharingRepository
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -592,15 +603,19 @@ fun ExperimentalSettings(
                     title = { Text("DEBUG: Clear To Listen Playlist") },
                     icon = { Icon(Icons.Rounded.Delete, null) },
                     onClick = {
-                        Toast.makeText(context, "Clearing To Listen playlist...", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Clearing To Listen playlist (Local + Firestore)...", Toast.LENGTH_SHORT).show()
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
-                                database.transaction {
-                                    clearPlaylist(com.dd3boh.outertune.db.entities.PlaylistEntity.TO_LISTEN_PLAYLIST_ID)
-                                }
-                                Log.i(SETTINGS_TAG, "To Listen playlist cleared successfully")
+                                // We need the repository. In this app, it's often injected or accessed via a ViewModel.
+                                // For settings, we use a Hilt entry point to get the repository.
+                                val repository = EntryPointAccessors.fromApplication(
+                                    context.applicationContext,
+                                    SongSharingRepositoryEntryPoint::class.java
+                                ).songSharingRepository()
+                                repository.clearToListenPlaylist()
+
                                 withContext(Dispatchers.Main) {
-                                    Toast.makeText(context, "Cleared! Note: Songs may reappear if Firebase records still exist with completedAt=null. Delete Firebase docs to prevent this.", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, "Successfully cleared locally and in Firestore!", Toast.LENGTH_SHORT).show()
                                 }
                             } catch (e: Exception) {
                                 Log.e(SETTINGS_TAG, "Error clearing To Listen playlist", e)

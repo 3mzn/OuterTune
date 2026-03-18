@@ -78,6 +78,10 @@ interface PlaylistsDao {
     @Query("SELECT * FROM playlist_song_map WHERE playlistId = :playlistId ORDER BY position")
     fun playlistSongs(playlistId: String): Flow<List<PlaylistSong>>
 
+    @Transaction
+    @Query("SELECT * FROM playlist_song_map WHERE playlistId = :playlistId ORDER BY position")
+    fun playlistSongsSync(playlistId: String): List<PlaylistSong>
+
     @Query("SELECT songId from playlist_song_map WHERE playlistId = :playlistId AND songId IN (:songIds)")
     fun playlistDuplicates(playlistId: String, songIds: List<String>,): List<String>
 
@@ -100,6 +104,13 @@ interface PlaylistsDao {
         WHERE playlistId = :playlistId AND songId = :songId
     """)
     suspend fun isSongInPlaylist(playlistId: String, songId: String): Int
+
+    @Query("""
+        SELECT COUNT(*) 
+        FROM playlist_song_map 
+        WHERE playlistId = :playlistId AND songId = :songId
+    """)
+    fun isSongInPlaylistSync(playlistId: String, songId: String): Int
 
     @RawQuery(observedEntities = [PlaylistEntity::class])
     fun _getPlaylists(query: SupportSQLiteQuery): Flow<List<Playlist>>

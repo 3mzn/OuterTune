@@ -16,6 +16,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.dd3boh.outertune.db.MusicDatabase.Companion.MUSIC_DATABASE_VERSION
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.dd3boh.outertune.db.entities.AlbumArtistMap
 import com.dd3boh.outertune.db.entities.AlbumEntity
 import com.dd3boh.outertune.db.entities.ArtistEntity
@@ -63,6 +65,22 @@ class MusicDatabase(
                 block(this@MusicDatabase)
             }
         }
+    }
+
+    /**
+     * Suspend variant of transaction that waits for completion
+     */
+    suspend fun <T> runTransaction(block: MusicDatabase.() -> T): T = withContext(Dispatchers.IO) {
+        delegate.runInTransaction<T> {
+            block(this@MusicDatabase)
+        }
+    }
+
+    /**
+     * Suspend variant of query that waits for completion
+     */
+    suspend fun <T> runQuery(block: MusicDatabase.() -> T): T = withContext(Dispatchers.IO) {
+        block(this@MusicDatabase)
     }
 
     fun close() = delegate.close()

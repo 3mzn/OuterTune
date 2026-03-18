@@ -483,7 +483,7 @@ class MusicService : MediaLibraryService(),
                         listOf(preloadItem),
                         shuffled = queue.startShuffled,
                         replace = replace,
-                        continuationEndpoint = null // fulfilled later on after initial status
+                        continuationEndpoint = queue.playlistId // pass playlist context
                     )
                     queueBoard.value.setCurrQueue(q, true)
                 }
@@ -513,7 +513,7 @@ class MusicService : MediaLibraryService(),
                         shuffled = queue.startShuffled,
                         startIndex = if (initialStatus.mediaItemIndex > 0) initialStatus.mediaItemIndex else 0,
                         replace = replace || preloadItem != null,
-                        continuationEndpoint = if (isRadio) items.takeLast(4).shuffled().first().id else null // yq?.getContinuationEndpoint()
+                        continuationEndpoint = queue.playlistId ?: if (isRadio) items.takeLast(4).shuffled().first().id else null
                     )
                     queueBoard.value.setCurrQueue(q, shouldResume)
                 }
@@ -643,18 +643,35 @@ class MusicService : MediaLibraryService(),
      */
     private fun startProgressTracking() {
         progressTrackingJob?.cancel()
-        progressTrackingJob = scope.launch {
+        Log.i(TAG, "🚀 [startProgressTracking] Starting progress tracking loop")
+        progressTrackingJob = offloadScope.launch {
+            var loopCount = 0
+            Log.i(TAG, "🔄 [Progress Loop] Loop started, isActive: $isActive")
             while (isActive) {
                 try {
-                    if (player.isPlaying) {
-                        val currentPlaylistId = queueBoard.value.getCurrentQueue()?.playlistId
-                        playbackProgressTracker.trackProgress(player, scope, currentPlaylistId)
+                    // CRITICAL FIX: Access player on Main thread
+                    withContext(Dispatchers.Main) {
+                        val isPlaying = player.isPlaying
+                        val currentQueue = queueBoard.value.getCurrentQueue()
+                        val currentPlaylistId = currentQueue?.playlistId
+                        
+                        // DIAGNOSTIC: Log every 5 seconds
+                        if (loopCount % 5 == 0) {
+                            Log.d(TAG, "🔄 [Progress Loop] Iteration: $loopCount | Playing: $isPlaying | PlaylistId: $currentPlaylistId | QueueInitialized: ${qbInit.value}")
+                        }
+                        
+                        if (isPlaying) {
+                            playbackProgressTracker.trackProgress(player, scope, currentPlaylistId)
+                        }
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error in progress tracking loop", e)
+                    Log.e(TAG, "❌ [Progress Loop] Error in progress tracking loop", e)
+                    e.printStackTrace()
                 }
+                loopCount++
                 delay(1000) // Check every second
             }
+            Log.i(TAG, "🛑 [Progress Loop] Loop ended")
         }
     }
 
@@ -1008,7 +1025,7 @@ class MusicService : MediaLibraryService(),
         queueBoard.value.setCurrQueuePosIndex(player.currentMediaItemIndex)
 
         // Track playback progress for "To Listen" playlist songs
-        val currentPlaylistId = queueBoard.value.getCurrentQueue()?.playlistId
+        val currentPlaylistId = queueBoard.value.getCurrentQueue()?.playlistId // Use internal playlistId instead of display title
         playbackProgressTracker.onMediaItemTransition(mediaItem, reason, currentPlaylistId)
 
         // reshuffle queue when shuffle AND repeat all are enabled
@@ -1035,6 +1052,29 @@ class MusicService : MediaLibraryService(),
         
         // Notify tracker of playback state changes
         playbackProgressTracker.onPlaybackStateChanged(playbackState)
+    }
+
+    override fun onPositionDiscontinuity(
+        oldPosition: Player.PositionInfo,
+        newPosition: Player.PositionInfo,
+        reason: Int
+    ) {
+        super.onPositionDiscontinuity(oldPosition, newPosition, reason)
+        
+        // Detect seek events: when position changes but we're still on the same media item
+        if (oldPosition.mediaItemIndex == newPosition.mediaItemIndex &&
+            oldPosition.positionMs != newPosition.positionMs &&
+            reason != Player.DISCONTINUITY_REASON_AUTO_TRANSITION
+        ) {
+            // Detect replay: position went to 0 from near end (user clicked replay)
+            if (newPosition.positionMs == 0L && oldPosition.positionMs > 0) {
+                Log.d(TAG, "🔄 [Replay] User restarted playback, notifying tracker")
+                playbackProgressTracker.onPlaybackRestarted()
+            } else {
+                Log.d(TAG, "🔄 [Seek] User performed seek, notifying tracker")
+                playbackProgressTracker.onSeekPerformed()
+            }
+        }
     }
 
     override fun onEvents(player: Player, events: Player.Events) {

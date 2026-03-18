@@ -547,10 +547,10 @@ fun LocalPlaylistScreen(
                         onPlay = {
                             playerConnection.playQueue(
                                 ListQueue(
-                                    title =  playlistWithSongs.first!!.playlist.name,
+                                    title = playlistWithSongs.first!!.playlist.name,
                                     items = mutableSongs.map { it.song.toMediaMetadata() },
                                     startIndex = index,
-                                    playlistId =  playlistWithSongs.first?.playlist?.browseId
+                                    playlistId = playlistWithSongs.first?.id
                                 )
                             )
                         },
@@ -852,6 +852,7 @@ fun LocalPlaylistHeader(
                 onClick = {
                     playerConnection.playQueue(
                         ListQueue(
+                            playlistId = playlist.id,
                             title = playlist.playlist.name,
                             items = songs.map { it.song.toMediaMetadata() }.toList()
                         )
@@ -873,6 +874,7 @@ fun LocalPlaylistHeader(
                 onClick = {
                     playerConnection.playQueue(
                         ListQueue(
+                            playlistId = playlist.id,
                             title = playlist.playlist.name,
                             items = songs.map { it.song.toMediaMetadata() },
                             startShuffled = true,

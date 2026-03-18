@@ -218,7 +218,7 @@ fun SelectionMediaMetadataMenu(
         }
 
         // Send to Friends action
-        if (songSharingRepository != null && FirebaseAuth.getInstance().currentUser != null) {
+        if (!allLocal && songSharingRepository != null && FirebaseAuth.getInstance().currentUser != null) {
             GridMenuItem(
                 icon = Icons.Rounded.Send,
                 title = R.string.send_to_friends
@@ -402,12 +402,18 @@ fun SelectionMediaMetadataMenu(
             onSend = { selectedFriendUids ->
                 coroutineScope.launch {
                     try {
-                        Log.d("SelectionSongsMenu", "📤 Starting send: ${selection.size} songs to ${selectedFriendUids.size} friends")
-                        Log.d("SelectionSongsMenu", "📋 Songs: ${selection.map { it.title }}")
+                        val songsToSend = selection.filterNot { it.isLocal }
+                        if (songsToSend.isEmpty()) {
+                            Log.d("SelectionSongsMenu", "⚠️ No remote songs to send")
+                            return@launch
+                        }
+
+                        Log.d("SelectionSongsMenu", "📤 Starting send: ${songsToSend.size} songs to ${selectedFriendUids.size} friends")
+                        Log.d("SelectionSongsMenu", "📋 Songs: ${songsToSend.map { it.title }}")
                         Log.d("SelectionSongsMenu", "👥 Friend UIDs: $selectedFriendUids")
                         
                         val successCount = songSharingRepository.sendSongsToFriends(
-                            songs = selection,
+                            songs = songsToSend,
                             friendUids = selectedFriendUids,
                             friendProfiles = friendProfiles
                         )

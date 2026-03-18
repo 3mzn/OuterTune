@@ -20,9 +20,6 @@ class SongListenedMessagingService : FirebaseMessagingService() {
     private val TAG = "SongListenedMessaging"
 
     companion object {
-        const val CHANNEL_ID = "song_listened_notifications"
-        const val NOTIFICATION_ID_BASE = 2000
-        
         // Notification data keys
         const val KEY_TYPE = "type"
         const val KEY_FRIEND_NAME = "friendName"
@@ -34,7 +31,6 @@ class SongListenedMessagingService : FirebaseMessagingService() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
@@ -61,64 +57,11 @@ class SongListenedMessagingService : FirebaseMessagingService() {
         Log.d(TAG, "Song listened notification: $friendName listened to $songTitle")
         
         // Show notification
-        showNotification(friendName, songTitle)
-    }
-
-    /**
-     * Show notification to user
-     */
-    private fun showNotification(friendName: String, songTitle: String) {
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        
-        // Create intent to open Social screen
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("navigate_to", "social") // MainActivity will handle navigation
-        }
-        
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        com.dd3boh.outertune.utils.SongNotificationHelper.showNotification(
+            this, 
+            friendName, 
+            songTitle
         )
-        
-        // Build notification
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.music_note)
-            .setContentTitle(getString(R.string.friend_listened_to_song))
-            .setContentText(getString(R.string.friend_listened_to_song_message, friendName, songTitle))
-            .setStyle(
-                NotificationCompat.BigTextStyle()
-                    .bigText(getString(R.string.friend_listened_to_song_message, friendName, songTitle))
-            )
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .build()
-        
-        // Show notification with unique ID based on timestamp
-        notificationManager.notify(
-            NOTIFICATION_ID_BASE + System.currentTimeMillis().toInt(),
-            notification
-        )
-    }
-
-    /**
-     * Create notification channel for Android O+
-     */
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = getString(R.string.song_listened_notifications)
-            val descriptionText = getString(R.string.song_listened_notifications_description)
-            val importance = NotificationManager.IMPORTANCE_DEFAULT
-            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
-                description = descriptionText
-            }
-            
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
-        }
     }
 
     override fun onNewToken(token: String) {

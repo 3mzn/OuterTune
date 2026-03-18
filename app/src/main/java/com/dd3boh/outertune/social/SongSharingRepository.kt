@@ -97,6 +97,8 @@ class SongSharingRepository @Inject constructor(
                         songArtist = song.artists.joinToString(", ") { it.name },
                         songDuration = song.duration,
                         thumbnailUrl = song.thumbnailUrl,
+                        albumId = song.album?.id,
+                        albumName = song.album?.title,
                         fromUid = currentUser.uid,
                         fromUsername = currentUsername,
                         toUid = friendUid,
@@ -113,7 +115,7 @@ class SongSharingRepository @Inject constructor(
                     Log.e(TAG, "❌ Failed to send song ${song.title} to $friendUid")
                     Log.e(TAG, "❌ Exception: ${e.javaClass.simpleName}: ${e.message}")
                     e.printStackTrace()
-                    throw e // Re-throw to show in toast
+                    // Remove re-throw so the loop can continue to send other songs
                 }
             }
         }
@@ -137,10 +139,9 @@ class SongSharingRepository @Inject constructor(
         Log.d(TAG, "👂 Setting up Firestore listener for user: $currentUid")
         
         // Simplified query to avoid needing a composite index
-        // We'll filter completedAt on the client side
+        // We'll filter completedAt and sort by sentAt on the client side
         val registration = sentSongsCollection
             .whereEqualTo("toUid", currentUid)
-            .orderBy("sentAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e(TAG, "❌ Error observing incoming songs", error)
@@ -154,23 +155,21 @@ class SongSharingRepository @Inject constructor(
                 
                 Log.d(TAG, "📦 Firestore snapshot received: ${snapshot.documents.size} documents")
                 
-                // Filter out completed songs on the client side
+                // Filter and Sort on the client side
                 val songs = snapshot.documents.mapNotNull { doc ->
                     try {
                         val song = SentSong.fromMap(doc.id, doc.data ?: emptyMap())
                         // Only include songs that haven't been completed
                         if (song.completedAt == null) {
-                            Log.d(TAG, "✅ Parsed song: ${song.songTitle} from ${song.fromUsername}")
                             song
                         } else {
-                            Log.d(TAG, "⏭️ Skipping completed song: ${song.songTitle}")
                             null
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "❌ Error parsing sent song from doc ${doc.id}", e)
                         null
                     }
-                }
+                }.sortedByDescending { it.sentAt } // Client-side sort: newest first
                 
                 Log.d(TAG, "📬 Sending ${songs.size} songs to Flow")
                 trySend(songs)
@@ -187,56 +186,42 @@ class SongSharingRepository @Inject constructor(
      * Add incoming song to "To Listen" playlist
      * @param sentSong The song to add
      * @param metadata The MediaMetadata for the song
-     * @return true if added successfully, false if duplicate or error
+     * @return AddSongResult indicating SUCCESS, DUPLICATE, or ERROR
      */
-    suspend fun addSongToToListenPlaylist(sentSong: SentSong, metadata: MediaMetadata): Boolean {
+    suspend fun addSongToToListenPlaylist(sentSong: SentSong, metadata: MediaMetadata): AddSongResult {
         return withContext(Dispatchers.IO) {
             try {
                 Log.d(TAG, "📥 Starting to add song to To Listen playlist: ${sentSong.songTitle}")
                 
-                // Check for duplicates
-                val isDuplicate = database.isSongInPlaylist(
-                    PlaylistEntity.TO_LISTEN_PLAYLIST_ID,
-                    sentSong.songId
-                ) > 0
-                
-                if (isDuplicate) {
-                    Log.d(TAG, "⏭️ Song ${sentSong.songTitle} already in To Listen playlist, skipping")
-                    return@withContext false
-                }
-
-                Log.d(TAG, "🔍 Checking if song exists in library: ${sentSong.songId}")
-                // Check if song exists in library
-                val existing = database.song(sentSong.songId).firstOrNull()
-                if (existing != null) {
-                    Log.d(TAG, "✅ Song already exists in library")
-                } else {
-                    Log.d(TAG, "❌ Song not in library, will insert")
-                }
-                
-                // Get existing songs in playlist
-                Log.d(TAG, "📋 Fetching existing songs in To Listen playlist...")
-                val existingSongs = database.playlistSongs(PlaylistEntity.TO_LISTEN_PLAYLIST_ID)
-                    .firstOrNull() ?: emptyList()
-                Log.d(TAG, "📊 Found ${existingSongs.size} existing songs in playlist")
-
-                // Insert song and update playlist
-                Log.d(TAG, "💾 Starting database transaction...")
-                database.query {
-                    // Insert song into library if not exists
-                    if (existing == null) {
-                        Log.d(TAG, "➕ Inserting song into library")
-                        insert(metadata.toSongEntity())
+                // CRITICAL: Use runTransaction to wait for completion and ensure atomicity
+                database.runTransaction {
+                    // 1. Double check for duplicates inside the transaction
+                    val isDuplicate = isSongInPlaylistSync(
+                        PlaylistEntity.TO_LISTEN_PLAYLIST_ID,
+                        sentSong.songId
+                    ) > 0
+                    
+                    if (isDuplicate) {
+                        Log.d(TAG, "⏭️ [Atomic] Song ${sentSong.songTitle} already in To Listen playlist, skipping")
+                        return@runTransaction AddSongResult.DUPLICATE
                     }
 
-                    // Shift all existing songs down by 1
-                    Log.d(TAG, "🔄 Shifting ${existingSongs.size} existing songs down by 1 position")
-                    existingSongs.forEach { playlistSong ->
+                    // 2. Check and insert song into library
+                    val existing = songSync(sentSong.songId)
+                    if (existing == null) {
+                        Log.d(TAG, "➕ [Atomic] Inserting song ${sentSong.songId} into library")
+                        insert(metadata.toSongEntity())
+                    }
+                    
+                    // 3. Get latest playlist state and shift positions
+                    val currentSongs = playlistSongsSync(PlaylistEntity.TO_LISTEN_PLAYLIST_ID)
+                    Log.d(TAG, "🔄 [Atomic] Shifting ${currentSongs.size} songs for index 0")
+                    
+                    currentSongs.forEach { playlistSong ->
                         update(playlistSong.map.copy(position = playlistSong.map.position + 1))
                     }
                     
-                    // Insert new song at position 0
-                    Log.d(TAG, "➕ Inserting new song at position 0")
+                    // 4. Insert at position 0
                     insert(
                         PlaylistSongMap(
                             songId = sentSong.songId,
@@ -244,14 +229,14 @@ class SongSharingRepository @Inject constructor(
                             position = 0
                         )
                     )
+                    
+                    Log.d(TAG, "✅ [Atomic] Added ${sentSong.songTitle} at position 0")
+                    AddSongResult.SUCCESS
                 }
-
-                Log.d(TAG, "✅ Successfully added song ${sentSong.songTitle} to To Listen playlist")
-                return@withContext true
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error adding song to To Listen playlist: ${e.message}", e)
                 e.printStackTrace()
-                return@withContext false
+                AddSongResult.ERROR
             }
         }
     }
@@ -261,22 +246,18 @@ class SongSharingRepository @Inject constructor(
      * @param sentSongId Firebase document ID
      */
     suspend fun markSongAsListened(sentSongId: String) {
-        try {
-            sentSongsCollection.document(sentSongId).update(
-                mapOf(
-                    "listenedAt" to System.currentTimeMillis()
-                )
-            ).await()
-            Log.d(TAG, "Marked song $sentSongId as listened")
-            
-            // TODO: Send FCM notification to sender
-            // This requires Firebase Cloud Functions or a backend server
-            // For now, the notification will be triggered by Firestore triggers
-            // on the backend (not implemented in this client-side code)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error marking song as listened: ${e.message}", e)
-            // Don't throw - allow playback to continue even if Firebase update fails
-            // The update will be retried when network is restored via Firestore offline persistence
+        withContext(Dispatchers.IO) {
+            try {
+                sentSongsCollection.document(sentSongId).update(
+                    mapOf(
+                        "listenedAt" to System.currentTimeMillis()
+                    )
+                ).await()
+                Log.d(TAG, "✅ Marked song $sentSongId as listened")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error marking song as listened: ${e.message}", e)
+                throw e  // Re-throw so caller knows it failed
+            }
         }
     }
 
@@ -286,45 +267,84 @@ class SongSharingRepository @Inject constructor(
      * @param songId YouTube/Local song ID
      */
     suspend fun markSongAsCompleted(sentSongId: String, songId: String) {
-        try {
-            // Remove from "To Listen" playlist FIRST (local operation, more critical)
-            val playlistSongs = database.playlistSongs(PlaylistEntity.TO_LISTEN_PLAYLIST_ID)
-                .firstOrNull() ?: emptyList()
-            
-            val songToRemove = playlistSongs.find { it.song.id == songId }
-            if (songToRemove != null) {
-                val removedPosition = songToRemove.map.position
-                
-                database.query {
-                    // Delete the song from playlist
-                    delete(songToRemove.map)
-                    
-                    // Shift all songs with position > removedPosition UP by 1 to close the gap
-                    // This prevents position gaps from accumulating over time
-                    playlistSongs
-                        .filter { it.map.position > removedPosition }
-                        .forEach { playlistSong ->
-                            update(playlistSong.map.copy(position = playlistSong.map.position - 1))
-                        }
+        withContext(Dispatchers.IO) {
+            try {
+                // Perform local removal first
+                database.transaction {
+                    val playlistSongs = playlistSongsSync(PlaylistEntity.TO_LISTEN_PLAYLIST_ID)
+                    val songToRemove = playlistSongs.find { it.song.id == songId }
+                    if (songToRemove != null) {
+                        val removedPosition = songToRemove.map.position
+                        delete(songToRemove.map)
+                        
+                        // Shift positions
+                        playlistSongs
+                            .filter { it.map.position > removedPosition }
+                            .forEach { playlistSong ->
+                                update(playlistSong.map.copy(position = playlistSong.map.position - 1))
+                            }
+                        Log.d(TAG, "✅ Local: Removed song $songId from To Listen playlist")
+                    }
                 }
-                Log.d(TAG, "Removed song $songId from To Listen playlist and reindexed positions")
+
+                // Update Firestore
+                Log.d(TAG, "☁️ Cloud: Updating Firebase for $sentSongId (completedAt)")
+                sentSongsCollection.document(sentSongId).update(
+                    mapOf(
+                        "completedAt" to System.currentTimeMillis()
+                    )
+                ).await()
+                Log.d(TAG, "✅ Cloud: Marked song $sentSongId as completed")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error marking song as completed: ${e.message}", e)
+                throw e  // Re-throw so caller knows it failed
             }
-
-            // Update Firebase AFTER local removal (can sync later if offline)
-            sentSongsCollection.document(sentSongId).update(
-                mapOf(
-                    "completedAt" to System.currentTimeMillis()
-                )
-            ).await()
-
-            Log.d(TAG, "Marked song $sentSongId as completed")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error marking song as completed: ${e.message}", e)
-            // Don't throw - the song was removed from playlist locally
-            // Firebase update will sync when network is restored
         }
     }
 
+    /**
+     * Clear all songs from "To Listen" playlist and mark them as completed in Firestore
+     */
+    suspend fun clearToListenPlaylist() {
+        val currentUid = auth.currentUser?.uid ?: return
+        
+        try {
+            Log.d(TAG, "🧹 Clearing To Listen playlist for user: $currentUid")
+            
+            // 1. Get all pending documents from Firestore for this user
+            val snapshot = sentSongsCollection
+                .whereEqualTo("toUid", currentUid)
+                .get()
+                .await()
+                
+            val pendingDocs = snapshot.documents.filter { doc ->
+                doc.get("completedAt") == null
+            }
+            
+            Log.d(TAG, "🔍 Found ${pendingDocs.size} pending songs in Firestore to mark as completed")
+            
+            // 2. Mark them as completed in Firestore using a batch
+            if (pendingDocs.isNotEmpty()) {
+                val batch = firestore.batch()
+                val now = System.currentTimeMillis()
+                pendingDocs.forEach { doc ->
+                    batch.update(doc.reference, "completedAt", now)
+                }
+                batch.commit().await()
+                Log.d(TAG, "✅ Marked ${pendingDocs.size} songs as completed in Firestore")
+            }
+            
+            // 3. Clear local database entries for this playlist
+            database.transaction {
+                clearPlaylist(PlaylistEntity.TO_LISTEN_PLAYLIST_ID)
+            }
+            Log.d(TAG, "✅ Local To Listen playlist cleared")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error clearing To Listen playlist: ${e.message}", e)
+            throw e // Re-throw to show error in UI
+        }
+    }
     /**
      * Mark notification as sent for a song
      * @param sentSongId Firebase document ID
@@ -438,28 +458,37 @@ class SongSharingRepository @Inject constructor(
     suspend fun getSentSongBySongId(songId: String): SentSong? {
         val currentUid = auth.currentUser?.uid ?: return null
         
+        Log.i(TAG, "🔍 [Repository] Searching for sent song $songId for recipient $currentUid")
+        
         return try {
             val snapshot = sentSongsCollection
                 .whereEqualTo("toUid", currentUid)
                 .whereEqualTo("songId", songId)
-                .orderBy("sentAt", Query.Direction.DESCENDING) // Get most recent first
-                // Note: Firestore doesn't support querying for null values
-                // Filter for non-completed songs on client side instead
                 .get()
                 .await()
             
-            // Filter for non-completed songs on client side
-            // Returns the most recent non-completed song
+            Log.i(TAG, "📦 [Repository] Found ${snapshot.documents.size} documents for song $songId (User: $currentUid)")
+            
+            if (snapshot.isEmpty) {
+                // Diagnostic: Log all songs for this user to help find the mismatch
+                val allUserSongs = sentSongsCollection.whereEqualTo("toUid", currentUid).get().await()
+                Log.i(TAG, "📋 [Diagnostic] User $currentUid has ${allUserSongs.size()} total songs in Firestore.")
+                allUserSongs.documents.forEach { doc ->
+                    Log.i(TAG, "   - docId: ${doc.id}, songId: '${doc.get("songId")}', toUid: '${doc.get("toUid")}', completedAt: ${doc.get("completedAt")}")
+                }
+            }
+
             snapshot.documents
                 .mapNotNull { doc ->
                     try {
-                        val song = SentSong.fromMap(doc.id, doc.data ?: emptyMap())
-                        if (song.completedAt == null) song else null
+                        SentSong.fromMap(doc.id, doc.data ?: emptyMap())
                     } catch (e: Exception) {
                         Log.e(TAG, "Error parsing sent song from doc ${doc.id}", e)
                         null
                     }
                 }
+                .filter { it.completedAt == null }
+                .sortedByDescending { it.sentAt }
                 .firstOrNull()
         } catch (e: Exception) {
             Log.e(TAG, "Error getting sent song by ID", e)

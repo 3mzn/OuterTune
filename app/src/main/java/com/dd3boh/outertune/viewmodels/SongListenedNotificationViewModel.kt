@@ -35,35 +35,29 @@ class SongListenedNotificationViewModel @Inject constructor(
     private var listenerJob: Job? = null
     private var currentUserId: String? = null
 
-    companion object {
-        const val CHANNEL_ID = "song_listened_notifications"
-        const val NOTIFICATION_ID_BASE = 3000
-    }
+    private var authListener: FirebaseAuth.AuthStateListener? = null
 
     init {
         Log.d(TAG, "🚀 SongListenedNotificationViewModel initialized")
         
         // Monitor Firebase Auth state changes
-        viewModelScope.launch {
-            while (true) {
-                val currentUser = auth.currentUser
-                val newUserId = currentUser?.uid
+        authListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+            val newUserId = firebaseAuth.currentUser?.uid
+            
+            if (newUserId != currentUserId) {
+                Log.d(TAG, "🔄 User changed from $currentUserId to $newUserId")
+                currentUserId = newUserId
                 
-                if (newUserId != currentUserId) {
-                    Log.d(TAG, "🔄 User changed from $currentUserId to $newUserId")
-                    currentUserId = newUserId
-                    
-                    if (newUserId != null) {
-                        Log.d(TAG, "✅ User logged in: $newUserId - starting notification listener")
-                        startListening()
-                    } else {
-                        Log.w(TAG, "⚠️ User logged out - stopping notification listener")
-                        stopListening()
-                    }
+                if (newUserId != null) {
+                    Log.d(TAG, "✅ User logged in: $newUserId - starting notification listener")
+                    startListening()
+                } else {
+                    Log.w(TAG, "⚠️ User logged out - stopping notification listener")
+                    stopListening()
                 }
-                
-                kotlinx.coroutines.delay(1000) // Check every second
             }
+        }.also { 
+            auth.addAuthStateListener(it)
         }
     }
 
@@ -89,7 +83,7 @@ class SongListenedNotificationViewModel @Inject constructor(
                     // Show notification for each song
                     songs.forEach { sentSong ->
                         Log.d(TAG, "🔔 Showing notification for: ${sentSong.songTitle}")
-                        showNotification(sentSong)
+                        com.dd3boh.outertune.utils.SongNotificationHelper.showNotification(context, sentSong)
                         
                         // Mark as notified
                         songSharingRepository.markNotificationSent(sentSong.id)
@@ -110,77 +104,9 @@ class SongListenedNotificationViewModel @Inject constructor(
         listenerJob = null
     }
 
-    /**
-     * Show local notification
-     */
-    private fun showNotification(sentSong: com.dd3boh.outertune.social.SentSong) {
-        createNotificationChannel()
-
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        // Create intent to open Social screen
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("navigate_to", "social")
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // Handle edge cases for missing data
-        val friendName = sentSong.fromUsername.ifEmpty { "A friend" }
-        val songTitle = sentSong.songTitle.ifEmpty { "a song you sent" }
-
-        val title = context.getString(R.string.friend_listened_notification_title)
-        val message = if (sentSong.songTitle.isEmpty()) {
-            "$friendName listened to a song you sent"
-        } else {
-            "$friendName listened to $songTitle"
-        }
-
-        // Build notification
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.music_note)
-            .setContentTitle(title)
-            .setContentText(message)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .build()
-
-        // Show notification with unique ID
-        notificationManager.notify(
-            NOTIFICATION_ID_BASE + sentSong.id.hashCode(),
-            notification
-        )
-
-        Log.d(TAG, "✅ Notification shown for song: ${sentSong.songTitle}")
-    }
-
-    /**
-     * Create notification channel for Android O+
-     */
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = context.getString(R.string.song_listened_channel_name)
-            val descriptionText = context.getString(R.string.song_listened_channel_description)
-            val importance = NotificationManager.IMPORTANCE_DEFAULT
-            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
-                description = descriptionText
-            }
-
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
-        }
-    }
-
     override fun onCleared() {
         super.onCleared()
+        authListener?.let { auth.removeAuthStateListener(it) }
         stopListening()
     }
 }

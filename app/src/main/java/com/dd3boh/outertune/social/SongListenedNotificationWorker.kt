@@ -59,7 +59,7 @@ class SongListenedNotificationWorker @AssistedInject constructor(
 
             // Show notification for each song
             listenedSongs.forEach { sentSong ->
-                showNotification(sentSong)
+                com.dd3boh.outertune.utils.SongNotificationHelper.showNotification(context, sentSong)
                 // Mark as notified
                 songSharingRepository.markNotificationSent(sentSong.id)
             }
@@ -69,69 +69,6 @@ class SongListenedNotificationWorker @AssistedInject constructor(
             Log.e(TAG, "Error checking for listened songs", e)
             // Retry on failure
             Result.retry()
-        }
-    }
-
-    private fun showNotification(sentSong: SentSong) {
-        createNotificationChannel()
-
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        // Create intent to open Social screen
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("navigate_to", "social")
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // Handle edge cases for missing data
-        val friendName = sentSong.fromUsername.ifEmpty { "A friend" }
-        val songTitle = sentSong.songTitle.ifEmpty { "a song you sent" }
-
-        val title = context.getString(R.string.friend_listened_notification_title)
-        val message = if (sentSong.songTitle.isEmpty()) {
-            "$friendName listened to a song you sent"
-        } else {
-            "$friendName listened to $songTitle"
-        }
-
-        // Build notification
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.music_note)
-            .setContentTitle(title)
-            .setContentText(message)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .build()
-
-        // Show notification with unique ID
-        notificationManager.notify(
-            NOTIFICATION_ID_BASE + sentSong.id.hashCode(),
-            notification
-        )
-
-        Log.d(TAG, "Notification shown for song: ${sentSong.songTitle}")
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = context.getString(R.string.song_listened_channel_name)
-            val descriptionText = context.getString(R.string.song_listened_channel_description)
-            val importance = NotificationManager.IMPORTANCE_DEFAULT
-            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
-                description = descriptionText
-            }
-
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
         }
     }
 }

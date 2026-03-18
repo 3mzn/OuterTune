@@ -31,6 +31,9 @@ class SongSharingViewModel @Inject constructor(
     private var listenerJob: kotlinx.coroutines.Job? = null
 
     private var currentUserId: String? = null
+    
+    // Track already processed documents to prevent redundant processing in the same session
+    private val processedDocumentIds = mutableSetOf<String>()
 
     init {
         Log.d(TAG, "🚀 SongSharingViewModel initialized")
@@ -45,21 +48,38 @@ class SongSharingViewModel @Inject constructor(
                 
                 // Start listening for incoming songs
                 Log.d(TAG, "👂 Starting to listen for incoming songs...")
+                
+                // Track user ID to handle account switches
+                val userId = auth.currentUser?.uid
+                if (userId != currentUserId) {
+                    Log.d(TAG, "👤 User changed from $currentUserId to $userId. Clearing processed document cache.")
+                    currentUserId = userId
+                    processedDocumentIds.clear()
+                }
+
                 songSharingRepository.observeIncomingSongs().collect { songs ->
-                    Log.d(TAG, "📬 Received ${songs.size} incoming songs from Firestore")
+                    Log.d(TAG, "📬 Received ${songs.size} incoming songs from Firestore (User: $userId)")
                     _incomingSongs.value = songs
                     
                     // Process new songs with proper coroutine handling
                     songs.forEach { sentSong ->
-                        Log.d(TAG, "🎵 Processing song: ${sentSong.songTitle} from ${sentSong.fromUsername}")
-                        // Launch each processing in a separate coroutine to handle errors independently
-                        launch {
-                            try {
-                                processSentSong(sentSong)
-                            } catch (e: Exception) {
-                                Log.e(TAG, "❌ Failed to process song ${sentSong.songTitle}", e)
-                                // Continue processing other songs even if one fails
+                        // Only process songs that haven't been handled yet in this session
+                        if (!processedDocumentIds.contains(sentSong.id)) {
+                            Log.d(TAG, "🎵 Processing new song document: ${sentSong.id} (${sentSong.songTitle})")
+                            processedDocumentIds.add(sentSong.id)
+                            
+                            // Launch each processing in a separate coroutine
+                            viewModelScope.launch {
+                                try {
+                                    processSentSong(sentSong)
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "❌ Failed to process song ${sentSong.songTitle}", e)
+                                    // If it failed, we might want to allow retry in next snapshot 
+                                    // but for now, keep it in processed to avoid infinite loops
+                                }
                             }
+                        } else {
+                            Log.v(TAG, "⏭️ Already processed song document: ${sentSong.id}")
                         }
                     }
                 }
@@ -90,17 +110,6 @@ class SongSharingViewModel @Inject constructor(
         try {
             Log.d(TAG, "🔍 Starting to process sent song: ${sentSong.songTitle}")
             
-            // Check if already in playlist (duplicate check)
-            val isDuplicate = database.isSongInPlaylist(
-                com.dd3boh.outertune.db.entities.PlaylistEntity.TO_LISTEN_PLAYLIST_ID,
-                sentSong.songId
-            ) > 0
-            
-            if (isDuplicate) {
-                Log.d(TAG, "⏭️ Song ${sentSong.songTitle} already in To Listen playlist, skipping")
-                return
-            }
-            
             Log.d(TAG, "✅ Song ${sentSong.songTitle} is new, fetching metadata...")
 
             // Fetch song metadata from YouTube if needed
@@ -116,12 +125,20 @@ class SongSharingViewModel @Inject constructor(
                 
                 while (retryCount < maxRetries && !success) {
                     try {
-                        success = songSharingRepository.addSongToToListenPlaylist(sentSong, metadata)
+                        val result = songSharingRepository.addSongToToListenPlaylist(sentSong, metadata)
                         
-                        if (success) {
-                            Log.d(TAG, "✅ Successfully added ${sentSong.songTitle} to To Listen playlist")
-                        } else {
-                            Log.w(TAG, "⚠️ Failed to add ${sentSong.songTitle} (might be duplicate)")
+                        when (result) {
+                            com.dd3boh.outertune.social.AddSongResult.SUCCESS -> {
+                                Log.d(TAG, "✅ Successfully added ${sentSong.songTitle} to To Listen playlist")
+                                success = true
+                            }
+                            com.dd3boh.outertune.social.AddSongResult.DUPLICATE -> {
+                                Log.w(TAG, "⚠️ ${sentSong.songTitle} is already in the playlist. Skipping duplicate processing.")
+                                success = true // Treat as success to stop retrying
+                            }
+                            com.dd3boh.outertune.social.AddSongResult.ERROR -> {
+                                throw Exception("Repository returned ERROR")
+                            }
                         }
                     } catch (e: Exception) {
                         retryCount++
@@ -131,7 +148,6 @@ class SongSharingViewModel @Inject constructor(
                             kotlinx.coroutines.delay(delayMs)
                         } else {
                             Log.e(TAG, "❌ Failed to add ${sentSong.songTitle} after $maxRetries attempts", e)
-                            throw e
                         }
                     }
                 }
@@ -161,7 +177,12 @@ class SongSharingViewModel @Inject constructor(
                 ),
                 duration = sentSong.songDuration,
                 thumbnailUrl = sentSong.thumbnailUrl,
-                album = null,
+                album = if (sentSong.albumName != null) {
+                    MediaMetadata.Album(
+                        id = sentSong.albumId ?: "",
+                        title = sentSong.albumName
+                    )
+                } else null,
                 genre = null,
                 year = null
             )
