@@ -57,8 +57,16 @@ class SongListenedNotificationWorker @AssistedInject constructor(
 
             Log.d(TAG, "Found ${listenedSongs.size} songs needing notification")
 
-            // Show notification for each song
-            listenedSongs.forEach { sentSong ->
+            // Only notify for songs listened to in the last 24 hours
+            val oneDayAgo = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(1)
+            val recentSongs = listenedSongs.filter { song ->
+                song.listenedAt != null && song.listenedAt > oneDayAgo
+            }
+            
+            Log.d(TAG, "🔔 Filtering to ${recentSongs.size} recent songs (last 24h)")
+
+            // Show notification for each recent song
+            recentSongs.forEach { sentSong ->
                 com.dd3boh.outertune.utils.SongNotificationHelper.showNotification(context, sentSong)
                 // Mark as notified
                 songSharingRepository.markNotificationSent(sentSong.id)

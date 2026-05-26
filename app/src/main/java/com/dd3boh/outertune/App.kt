@@ -62,20 +62,34 @@ import kotlinx.coroutines.withContext
 import java.net.Proxy
 import java.util.Locale
 
+import androidx.work.Configuration
+import androidx.hilt.work.HiltWorkerFactory
 import com.dd3boh.outertune.social.SongListenedNotificationManager
+import com.dd3boh.outertune.social.SongListenedRealTimeNotifier
 import com.dd3boh.outertune.viewmodels.SongListenedNotificationViewModel
 import com.google.firebase.auth.FirebaseAuth
 import javax.inject.Inject
 
 @HiltAndroidApp
-class App : Application(), SingletonImageLoader.Factory {
+class App : Application(), SingletonImageLoader.Factory, Configuration.Provider {
     private val TAG = App::class.simpleName.toString()
 
     @Inject
     lateinit var songListenedNotificationManager: SongListenedNotificationManager
 
     @Inject
+    lateinit var songListenedRealTimeNotifier: SongListenedRealTimeNotifier
+
+    @Inject
     lateinit var auth: FirebaseAuth
+
+    @Inject
+    lateinit var workerFactory: HiltWorkerFactory
+
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
 
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
@@ -94,6 +108,16 @@ class App : Application(), SingletonImageLoader.Factory {
                 songListenedNotificationManager.startWorker()
             }
         }
+
+        // Initialize real-time notifier (this starts the Firestore listener)
+        // Accessing it ensures it's created and starts listening
+        Log.d(TAG, "Initializing real-time notifier: $songListenedRealTimeNotifier")
+        
+        // Manual trigger for testing - remove in production
+        songListenedNotificationManager.triggerWorkerNow()
+        
+        // Test: Show a test notification to verify notifications work
+        // REMOVED - was just for testing
 
         val locale = Locale.getDefault()
         val languageTag = locale.toLanguageTag().replace("-Hant", "") // replace zh-Hant-* to zh-*

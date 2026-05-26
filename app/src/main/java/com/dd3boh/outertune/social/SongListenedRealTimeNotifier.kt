@@ -1,45 +1,36 @@
-package com.dd3boh.outertune.viewmodels
+package com.dd3boh.outertune.social
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
-import android.os.Build
 import android.util.Log
-import androidx.core.app.NotificationCompat
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.dd3boh.outertune.MainActivity
-import com.dd3boh.outertune.R
-import com.dd3boh.outertune.social.SongSharingRepository
 import com.google.firebase.auth.FirebaseAuth
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Singleton
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
- * ViewModel for handling real-time "friend listened" notifications when app is open
+ * Singleton service for real-time "friend listened" notifications
+ * This runs alongside the app and monitors Firestore for songs that have been listened to
  */
-@HiltViewModel
-class SongListenedNotificationViewModel @Inject constructor(
+@Singleton
+class SongListenedRealTimeNotifier @Inject constructor(
     @ApplicationContext private val context: Context,
     private val songSharingRepository: SongSharingRepository,
     private val auth: FirebaseAuth
-) : ViewModel() {
-    private val TAG = "SongListenedNotifVM"
-
+) {
+    private val TAG = "SongListenedRealTime"
     private var listenerJob: Job? = null
     private var currentUserId: String? = null
-
     private var authListener: FirebaseAuth.AuthStateListener? = null
 
+    private val scope = CoroutineScope(Dispatchers.IO)
+
     init {
-        Log.d(TAG, "🚀 SongListenedNotificationViewModel initialized")
+        Log.d(TAG, "🚀 SongListenedRealTimeNotifier initialized")
         
         // Monitor Firebase Auth state changes
         authListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
@@ -73,7 +64,7 @@ class SongListenedNotificationViewModel @Inject constructor(
         val thirtyDaysAgo = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(30)
         
         Log.d(TAG, "👂 Starting real-time listener for listened songs")
-        listenerJob = viewModelScope.launch {
+        listenerJob = scope.launch {
             try {
                 songSharingRepository.observeListenedSongsNeedingNotification(
                     fromUid = currentUid,
@@ -81,8 +72,16 @@ class SongListenedNotificationViewModel @Inject constructor(
                 ).collect { songs ->
                     Log.d(TAG, "📬 Received ${songs.size} songs needing notification")
                     
-                    // Show notification for each song
-                    songs.forEach { sentSong ->
+                    // Only notify for songs listened to in the last 24 hours
+                    val oneDayAgo = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(1)
+                    val recentSongs = songs.filter { song ->
+                        song.listenedAt != null && song.listenedAt > oneDayAgo
+                    }
+                    
+                    Log.d(TAG, "🔔 Filtering to ${recentSongs.size} recent songs (last 24h)")
+                    
+                    // Show notification for each recent song
+                    recentSongs.forEach { sentSong ->
                         Log.d(TAG, "🔔 Showing notification for: ${sentSong.songTitle}")
                         com.dd3boh.outertune.utils.SongNotificationHelper.showNotification(context, sentSong)
                         
@@ -105,8 +104,10 @@ class SongListenedNotificationViewModel @Inject constructor(
         listenerJob = null
     }
 
-    override fun onCleared() {
-        super.onCleared()
+    /**
+     * Cleanup when destroyed
+     */
+    fun destroy() {
         authListener?.let { auth.removeAuthStateListener(it) }
         stopListening()
     }
